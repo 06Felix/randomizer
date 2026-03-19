@@ -2,6 +2,29 @@
 name = "randomizer"
 version = "0.1.0"
 edition = "2024"
-author = ["rangaraja-r", "mark"]
+authors = ["rangaraja-r", "mark-felix"]
 
 [dependencies]
+
+# --- Async runtime ---
+tokio = { version = "1", features = ["full"] }
+
+# --- Web framework (REST + WebSocket) ---
+axum = "0.7"
+
+# --- JSON parsing ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# --- Random generation ---
+rand = "0.8"
+
+# --- Error handling ---
+thiserror = "1"
+
+# --- Logging / debugging ---
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+
+# --- Concurrent caching ---
+dashmap = "5"

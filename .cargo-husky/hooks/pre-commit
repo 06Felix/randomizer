@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo "Running fmt..."
+cargo fmt -- --check || exit 1
+
+echo "Running clippy..."
+cargo clippy -- -D warnings || exit 1

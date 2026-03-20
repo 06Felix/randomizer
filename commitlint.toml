@@ -1,0 +1,5 @@
+[rules.type]
+enum = ["feat", "fix", "docs", "style", "refactor", "test", "chore", "revert", "deps", "docs", "wip"]
+
+[rules]
+header_max_length = 72

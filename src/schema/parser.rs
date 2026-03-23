@@ -24,7 +24,8 @@ mod tests {
                 "score": {
                     "type": "float",
                     "min": 0.5,
-                    "max": 9.5
+                    "max": 9.5,
+                    "precision": 2
                 }
             }
         }
@@ -43,9 +44,14 @@ mod tests {
                 }
 
                 match properties.get("score") {
-                    Some(Schema::Float { min, max }) => {
+                    Some(Schema::Float {
+                        min,
+                        max,
+                        precision,
+                    }) => {
                         assert_eq!(*min, Some(0.5));
                         assert_eq!(*max, Some(9.5));
+                        assert_eq!(*precision, Some(2));
                     }
                     other => panic!("expected float schema for score, got {other:?}"),
                 }

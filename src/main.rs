@@ -1,14 +1,19 @@
 use std::collections::HashMap;
 
-use crate::generator::*;
+use crate::{compiler::compile_schema, generator::*, schema::Schema};
 
+mod compiler;
 mod generator;
 mod schema;
 
 fn main() {
     let mut rng = rand::rng();
+    let schema = Schema::Int {
+        min: None,
+        max: None,
+    };
 
-    let int_generator = Generator::Int(IntGenerator::new(Some(0), Some(100)));
+    let int_generator = compile_schema(&schema);
     let float_generator = Generator::Float(FloatGenerator::new(Some(0.0), Some(100.0), Some(2)));
     let object_generator = Generator::Object(ObjectGenerator::new(HashMap::new()));
 

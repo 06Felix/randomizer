@@ -1,4 +1,5 @@
 use rand::{Rng, RngExt};
+use rust_decimal::{Decimal, prelude::ToPrimitive};
 
 pub struct FloatGenerator {
     pub min: Option<f32>,
@@ -14,7 +15,10 @@ impl FloatGenerator {
     pub fn generate(&self, rng: &mut impl Rng) -> serde_json::Value {
         let value = rng.random_range(self.min.unwrap_or(0.0)..=self.max.unwrap_or(1.0));
         let precision = self.precision.unwrap_or(2);
-        let value = format!("{:.1$}", value, precision as usize);
-        serde_json::json!(value)
+        let decimal = Decimal::from_f32_retain(value)
+            .unwrap()
+            .round_dp(precision);
+    
+        serde_json::Value::Number(serde_json::Number::from_f64(decimal.to_f64().unwrap()).unwrap())
     }
 }

@@ -1,27 +1,19 @@
-use std::collections::HashMap;
+use axum::{Router, routing::post};
 
-use crate::{compiler::compile_schema, generator::*, schema::Schema};
+use crate::api::get_random;
 
+mod api;
 mod compiler;
 mod generator;
 mod schema;
 
-fn main() {
-    let mut rng = rand::rng();
-    let schema = Schema::Int {
-        min: None,
-        max: None,
-    };
+#[tokio::main]
+async fn main() {
+    let app = Router::new().route("/random", post(get_random)); // 👈 use handler here
 
-    let int_generator = compile_schema(&schema);
-    let float_generator = Generator::Float(FloatGenerator::new(Some(0.0), Some(100.0), Some(2)));
-    let object_generator = Generator::Object(ObjectGenerator::new(HashMap::new()));
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
-    let int_value = int_generator.generate(&mut rng);
-    let float_value = float_generator.generate(&mut rng);
-    let object_value = object_generator.generate(&mut rng);
+    println!("Server running on 3000");
 
-    println!("Int: {}", int_value);
-    println!("Float: {}", float_value);
-    println!("Object: {:?}", object_value);
+    axum::serve(listener, app).await.unwrap();
 }

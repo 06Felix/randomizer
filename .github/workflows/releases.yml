@@ -72,7 +72,7 @@ jobs:
 
           if [ "${{ matrix.archive }}" = "zip" ]; then
             # Windows runner supports zip
-            zip -r "$APP_NAME-$VERSION-${{ matrix.target }}.zip" dist
+            powershell -Command "Compress-Archive -Path dist/* -DestinationPath $APP_NAME-$VERSION-${{ matrix.target }}.zip"
           else
             tar -czf "$APP_NAME-$VERSION-${{ matrix.target }}.tar.gz" -C dist .
           fi

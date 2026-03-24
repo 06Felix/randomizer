@@ -21,9 +21,9 @@ async fn main() {
         .route("/random", post(get_random))
         .route("/ws", get(ws_handler));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:7878").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:7263").await.unwrap();
 
-    info!("server listening on 0.0.0.0:7878");
+    info!("server listening on 0.0.0.0:7263");
 
     axum::serve(listener, app).await.unwrap();
 }

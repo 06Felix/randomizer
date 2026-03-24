@@ -9,7 +9,10 @@ use rand::{SeedableRng, rng, rngs::SmallRng};
 use tokio::time::{Duration, interval};
 use tracing::{debug, warn};
 
-use crate::{compiler::compile_schema, schema::Schema};
+use crate::{compiler::compile_schema, schema::model::WsRequest};
+
+/// Minimum frequency in milliseconds for WebSocket updates.
+const MIN_FREQUENCY: u64 = 100;
 
 /// Upgrades an HTTP request to a WebSocket stream of generated JSON values.
 pub async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
@@ -20,8 +23,8 @@ pub async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 /// Handles one WebSocket client by reading a schema and streaming values on an interval.
 async fn handle_socket(mut socket: WebSocket) {
     debug!("websocket connection established");
-    let schema = match socket.recv().await {
-        Some(Ok(Message::Text(text))) => match serde_json::from_str::<Schema>(&text) {
+    let request = match socket.recv().await {
+        Some(Ok(Message::Text(text))) => match serde_json::from_str::<WsRequest>(&text) {
             Ok(schema) => {
                 debug!(schema = ?schema, "received websocket schema");
                 schema
@@ -47,10 +50,20 @@ async fn handle_socket(mut socket: WebSocket) {
         }
     };
 
-    let generator = match compile_schema(&schema) {
-        Ok(g) => {
+    let frequency = request.frequency;
+    if frequency < MIN_FREQUENCY {
+        let _ = socket
+            .send(Message::Text(
+                format!(r#"{{"error": "frequency must be at least {MIN_FREQUENCY}"}}"#).into(),
+            ))
+            .await;
+        return;
+    }
+
+    let generator = match compile_schema(&request.schema) {
+        Ok(gnr) => {
             debug!("compiled websocket generator");
-            g
+            gnr
         }
         Err(e) => {
             warn!(error = %e, "websocket schema compilation failed");
@@ -61,7 +74,7 @@ async fn handle_socket(mut socket: WebSocket) {
         }
     };
 
-    let mut ticker = interval(Duration::from_secs(1));
+    let mut ticker = interval(Duration::from_millis(frequency));
     let mut rng = SmallRng::from_rng(&mut rng());
 
     loop {

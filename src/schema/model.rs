@@ -18,3 +18,10 @@ pub enum Schema {
     #[serde(rename = "object")]
     Object { properties: HashMap<String, Schema> },
 }
+
+/// WebSocket request containing a schema and frequency.
+#[derive(Debug, Deserialize)]
+pub struct WsRequest {
+    pub schema: Schema,
+    pub frequency: u64,
+}

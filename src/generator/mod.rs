@@ -1,7 +1,7 @@
+pub mod composite;
 pub mod core;
 pub mod primitives;
-pub mod composite;
 
+pub use composite::*;
 pub use core::*;
 pub use primitives::*;
-pub use composite::*;

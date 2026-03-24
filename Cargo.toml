@@ -27,8 +27,7 @@ thiserror = "2"
 
 # --- Logging / debugging ---
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt"] }
-
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 # --- Concurrent caching ---
 dashmap = "6"
 

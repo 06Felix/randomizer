@@ -1,5 +1,6 @@
 use rand::{Rng, RngExt};
 
+/// Generates integers within an inclusive range.
 pub struct IntGenerator {
     pub min: i32,
     pub max: i32,
@@ -11,4 +12,3 @@ impl IntGenerator {
         serde_json::json!(value)
     }
 }
-

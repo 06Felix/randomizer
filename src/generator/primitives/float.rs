@@ -1,6 +1,7 @@
 use rand::{Rng, RngExt};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 
+/// Generates floating-point values within an inclusive range.
 pub struct FloatGenerator {
     pub min: f32,
     pub max: f32,
@@ -17,4 +18,3 @@ impl FloatGenerator {
         serde_json::Value::Number(serde_json::Number::from_f64(decimal.to_f64().unwrap()).unwrap())
     }
 }
-

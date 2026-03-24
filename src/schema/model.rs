@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+/// User-provided schema describing the shape of the random JSON output.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum Schema {

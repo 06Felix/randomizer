@@ -1,11 +1,18 @@
 use std::collections::HashMap;
 
+use tracing::debug;
+
 use crate::{
     generator::{FloatGenerator, Generator, IntGenerator, ObjectGenerator},
     schema::Schema,
 };
 
+/// Compiles a parsed schema into an executable generator tree.
+///
+/// Returns an error when a schema contains invalid bounds.
 pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
+    debug!(schema = ?schema, "compiling schema");
+
     match schema {
         Schema::Int { min, max } => {
             let min = min.unwrap_or(0);
@@ -51,7 +58,7 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
 
                 fields.insert(key.clone(), generator);
             }
-            Ok(Generator::Object(ObjectGenerator::new(fields)))
+            Ok(Generator::Object(ObjectGenerator { fields }))
         }
     }
 }

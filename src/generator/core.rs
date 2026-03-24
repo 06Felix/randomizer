@@ -1,7 +1,8 @@
-use crate::generator::primitives::int::IntGenerator;
-use crate::generator::primitives::float::FloatGenerator;
 use crate::generator::composite::object::ObjectGenerator;
+use crate::generator::primitives::float::FloatGenerator;
+use crate::generator::primitives::int::IntGenerator;
 
+/// Runtime generator produced from a parsed schema.
 pub enum Generator {
     Int(IntGenerator),
     Float(FloatGenerator),

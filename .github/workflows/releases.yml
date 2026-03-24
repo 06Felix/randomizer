@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write # required to create GitHub releases
+  pull-requests: read
+  issues: read
 
 jobs:
   build:

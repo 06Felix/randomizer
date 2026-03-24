@@ -1,6 +1,6 @@
-use axum::{Router, routing::post};
+use axum::{Router, routing::{get, post}};
 
-use crate::api::get_random;
+use crate::api::{get_random, ws_handler};
 
 mod api;
 mod compiler;
@@ -9,11 +9,12 @@ mod schema;
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/random", post(get_random)); // 👈 use handler here
+    let app = Router::new().route("/random", post(get_random))
+        .route("/ws", get(ws_handler));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:7878").await.unwrap();
 
-    println!("Server running on 3000");
+    println!("Server running on 7878");
 
     axum::serve(listener, app).await.unwrap();
 }

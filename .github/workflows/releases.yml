@@ -16,17 +16,23 @@ jobs:
     strategy:
       matrix:
         include:
+          # Linux
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             archive: tar.gz
+            bin: randomizer
 
-          - target: x86_64-pc-windows-gnu
-            os: ubuntu-latest
+          # Windows (MSVC - FIXED)
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
             archive: zip
+            bin: randomizer.exe
 
+          # macOS (Apple Silicon)
           - target: aarch64-apple-darwin
             os: macos-latest
             archive: tar.gz
+            bin: randomizer
 
     steps:
       - name: Checkout
@@ -39,25 +45,20 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross (only when needed)
-        if: matrix.target != 'x86_64-unknown-linux-gnu'
-        run: cargo install cross
+      # ✅ Native build (NO cross)
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Build binary
-        run: cross build --release --target ${{ matrix.target }}
-
-      - name: Package binary
+      # ✅ Package (cross-platform safe)
+      - name: Package
+        shell: bash
         run: |
           APP_NAME="randomizer"
           VERSION=${GITHUB_REF#refs/tags/}
 
           mkdir -p dist
 
-          BIN_PATH="target/${{ matrix.target }}/release/$APP_NAME"
-
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            BIN_PATH="$BIN_PATH.exe"
-          fi
+          BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.bin }}"
 
           if [ ! -f "$BIN_PATH" ]; then
             echo "Binary not found: $BIN_PATH"
@@ -66,10 +67,11 @@ jobs:
 
           cp "$BIN_PATH" dist/
 
-          # Optional strip (safe if available)
-          strip "$BIN_PATH" || true
+          # Strip (safe fallback)
+          strip "$BIN_PATH" 2>/dev/null || true
 
           if [ "${{ matrix.archive }}" = "zip" ]; then
+            # Windows runner supports zip
             zip -r "$APP_NAME-$VERSION-${{ matrix.target }}.zip" dist
           else
             tar -czf "$APP_NAME-$VERSION-${{ matrix.target }}.tar.gz" -C dist .

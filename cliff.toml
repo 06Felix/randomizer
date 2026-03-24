@@ -1,0 +1,36 @@
+[changelog]
+header = ""
+footer = ""
+
+body = """
+## {{ version }}
+
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+{% for commit in commits %}
+- {{ commit.scope | default(value="general") }}: {{ commit.message | split(pat=": ") | last }}
+{% endfor %}
+
+{% endfor %}
+"""
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+
+commit_parsers = [
+  # Breaking changes FIRST
+  { message = "^feat\\(.*\\)!:", group = "Breaking Changes" },
+  { message = "^fix\\(.*\\)!:", group = "Breaking Changes" },
+
+  # Features
+  { message = "^feat", group = "Features" },
+
+  # Fixes
+  { message = "^fix", group = "Fixes" },
+
+  # Skip junk
+  { message = ".*", skip = true },
+]
+
+tag_pattern = "v[0-9]*"

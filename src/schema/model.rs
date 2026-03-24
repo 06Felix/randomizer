@@ -12,7 +12,7 @@ pub enum Schema {
     Float {
         min: Option<f32>,
         max: Option<f32>,
-        precision: Option<u32>,
+        precision: Option<u8>,
     },
     #[serde(rename = "object")]
     Object { properties: HashMap<String, Schema> },

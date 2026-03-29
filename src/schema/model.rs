@@ -6,6 +6,7 @@ use serde::Deserialize;
 /// User-provided schema describing the shape of the random JSON output.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
+#[serde(deny_unknown_fields)]
 pub enum Schema {
     #[serde(rename = "int")]
     Int { min: Option<i32>, max: Option<i32> },
@@ -21,6 +22,7 @@ pub enum Schema {
 
 /// WebSocket request containing a schema and frequency.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WsRequest {
     pub schema: Schema,
     pub frequency: u64,

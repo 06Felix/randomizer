@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{i32, sync::Arc};
 
 use tracing::debug;
 
@@ -15,8 +15,8 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
 
     match schema {
         Schema::Int { min, max } => {
-            let min = min.unwrap_or(0);
-            let max = max.unwrap_or(100);
+            let min = min.unwrap_or(i32::MIN);
+            let max = max.unwrap_or(i32::MAX);
             if min > max {
                 return Err("Error: min is greater than max".to_string());
             }
@@ -40,8 +40,16 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
             }))
         }
         Schema::Object { properties } => {
-            let mut fields = HashMap::new();
-            for (key, value) in properties {
+            let mut keys: Vec<String> = properties.keys().cloned().collect();
+            keys.sort();
+
+            let mut fields = Vec::with_capacity(properties.len());
+            for key in keys {
+                let Some(value) = properties.get(&key) else {
+                    return Err(format!(
+                        "internal compile error: property {key:?} missing from schema map"
+                    ));
+                };
                 let generator = compile_schema(value).map_err(|e| {
                     let e_str = e.to_string();
 
@@ -56,7 +64,7 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
                     }
                 })?;
 
-                fields.insert(key.clone(), generator);
+                fields.push((Arc::from(key.into_boxed_str()), generator));
             }
             Ok(Generator::Object(ObjectGenerator { fields }))
         }

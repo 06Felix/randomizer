@@ -89,6 +89,7 @@ shaped like:
 - `int`
 - `float`
 - `object`
+- `boolean`
 
 ## Known Issues
 
@@ -103,3 +104,4 @@ No known issue, so can we consider that an issue??
 ## Changelog (Latest Version)
 
 Full history: [CHANGELOG.md](CHANGELOG.md)
+

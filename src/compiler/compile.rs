@@ -1,9 +1,9 @@
-use std::{i32, sync::Arc};
+use std::sync::Arc;
 
 use tracing::debug;
 
 use crate::{
-    generator::{FloatGenerator, Generator, IntGenerator, ObjectGenerator},
+    generator::{BooleanGenerator, FloatGenerator, Generator, IntGenerator, ObjectGenerator},
     schema::Schema,
 };
 
@@ -68,5 +68,8 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
             }
             Ok(Generator::Object(ObjectGenerator { fields }))
         }
+        Schema::Boolean { true_probability } => Ok(Generator::Boolean(BooleanGenerator {
+            true_probability: *true_probability,
+        })),
     }
 }

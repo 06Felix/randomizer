@@ -72,6 +72,7 @@ Randomizer currently supports these schema variants:
 - `int`
 - `float`
 - `object`
+- `boolean`
 
 ## Schema Field Reference
 
@@ -146,3 +147,17 @@ Fields:
 
 - `properties`: required map of field names to nested schemas
 
+### boolean
+
+Boolean generator configuration:
+
+```json
+{
+  "type": "boolean",
+  "true_probability": 50
+}
+```
+
+Fields:
+
+- `true_probability`: integer from 0 to 100 (values outside this range will be clamped)

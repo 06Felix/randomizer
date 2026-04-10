@@ -29,6 +29,7 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 # --- Concurrent caching ---
 dashmap = "6"
 cross = "0.2.5"
+uuid = { version = "1.23.0", features = ["v4"] }
 
 
 [dev-dependencies]

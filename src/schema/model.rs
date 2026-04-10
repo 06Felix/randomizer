@@ -20,6 +20,11 @@ pub enum Schema {
     Object { properties: HashMap<String, Schema> },
     #[serde(rename = "boolean")]
     Boolean { true_probability: i32 },
+    #[serde(rename = "uuid")]
+    Uuid {
+        prefix: Option<String>,
+        suffix: Option<String>,
+    },
 }
 
 /// WebSocket request containing a schema and frequency.

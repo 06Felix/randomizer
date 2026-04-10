@@ -3,7 +3,9 @@ use std::sync::Arc;
 use tracing::debug;
 
 use crate::{
-    generator::{BooleanGenerator, FloatGenerator, Generator, IntGenerator, ObjectGenerator},
+    generator::{
+        BooleanGenerator, FloatGenerator, Generator, IntGenerator, ObjectGenerator, UUIDGenerator,
+    },
     schema::Schema,
 };
 
@@ -70,6 +72,10 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
         }
         Schema::Boolean { true_probability } => Ok(Generator::Boolean(BooleanGenerator {
             true_probability: *true_probability,
+        })),
+        Schema::Uuid { prefix, suffix } => Ok(Generator::Uuid(UUIDGenerator {
+            prefix: prefix.clone().unwrap_or_default(),
+            suffix: suffix.clone().unwrap_or_default(),
         })),
     }
 }

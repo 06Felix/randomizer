@@ -1,7 +1,7 @@
-use crate::generator::BooleanGenerator;
 use crate::generator::composite::object::ObjectGenerator;
 use crate::generator::primitives::float::FloatGenerator;
 use crate::generator::primitives::int::IntGenerator;
+use crate::generator::{BooleanGenerator, UUIDGenerator};
 
 /// Runtime generator produced from a parsed schema.
 pub enum Generator {
@@ -9,6 +9,7 @@ pub enum Generator {
     Float(FloatGenerator),
     Object(ObjectGenerator),
     Boolean(BooleanGenerator),
+    Uuid(UUIDGenerator),
 }
 
 impl Generator {
@@ -18,6 +19,7 @@ impl Generator {
             Generator::Float(float_gen) => float_gen.generate(rng),
             Generator::Object(object_gen) => object_gen.generate(rng),
             Generator::Boolean(boolean_gen) => boolean_gen.generate(rng),
+            Generator::Uuid(uuid_gen) => uuid_gen.generate(),
         }
     }
 }

@@ -15,8 +15,9 @@ use tracing::{debug, warn};
 
 use crate::{compiler::compile_schema, schema::model::WsRequest, state::AppState};
 
-/// Minimum interval in milliseconds between WebSocket payloads (`request.frequency`).
+/// Frequency interval in milliseconds between WebSocket payloads (`request.frequency`).
 const MIN_FREQUENCY_MS: u64 = 100;
+const MAX_FREQUENCY_MS: u64 = 10000;
 
 /// JSON envelope for protocol errors sent as WebSocket text frames.
 #[derive(Serialize)]
@@ -82,10 +83,10 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
     };
 
     let frequency = request.frequency;
-    if frequency < MIN_FREQUENCY_MS {
+    if frequency < MIN_FREQUENCY_MS || frequency > MAX_FREQUENCY_MS {
         let _ = socket
             .send(Message::Text(ws_error_frame(format!(
-                "frequency must be at least {MIN_FREQUENCY_MS} ms"
+                "frequency must be between {MIN_FREQUENCY_MS} ms and {MAX_FREQUENCY_MS} ms"
             ))))
             .await;
         return;

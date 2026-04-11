@@ -73,6 +73,8 @@ Randomizer currently supports these schema variants:
 - `float`
 - `object`
 - `boolean`
+- `uuid`
+- `list`
 
 ## Schema Field Reference
 
@@ -147,7 +149,7 @@ Fields:
 
 - `properties`: required map of field names to nested schemas
 
-### boolean
+### `boolean`
 
 Boolean generator configuration:
 
@@ -161,3 +163,72 @@ Boolean generator configuration:
 Fields:
 
 - `true_probability`: integer from 0 to 100 (values outside this range will be clamped)
+
+### `uuid`
+
+UUID generator configuration:
+
+```json
+{
+  "type": "uuid",
+  "prefix": "user_",
+  "suffix": "_prod"
+}
+```
+
+Fields:
+
+- `prefix`: optional string added before the generated UUID
+- `suffix`: optional string added after the generated UUID
+
+### `list`
+
+List generator configuration with exact length:
+
+```json
+{
+  "type": "list",
+  "length": 3,
+  "items": {
+    "type": "int",
+    "min": 1,
+    "max": 10
+  }
+}
+```
+
+List generator configuration with a length range:
+
+```json
+{
+  "type": "list",
+  "min_length": 2,
+  "max_length": 5,
+  "items": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "uuid"
+      },
+      "active": {
+        "type": "boolean",
+        "true_probability": 75
+      }
+    }
+  }
+}
+```
+
+Fields:
+
+- `length`: optional exact list length
+- `min_length`: optional minimum list length
+- `max_length`: optional maximum list length
+- `items`: required nested schema used for every item in the list
+
+Rules:
+
+- Provide either `length` or both `min_length` and `max_length`
+- `min_length` must be less than or equal to `max_length`
+- List lengths cannot exceed `100`
+- All items in a list use the same schema, but that schema can itself be another `list`, an `object`, or any supported primitive type

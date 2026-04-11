@@ -1,3 +1,4 @@
+use crate::generator::composite::list::ListGenerator;
 use crate::generator::composite::object::ObjectGenerator;
 use crate::generator::primitives::float::FloatGenerator;
 use crate::generator::primitives::int::IntGenerator;
@@ -8,6 +9,7 @@ pub enum Generator {
     Int(IntGenerator),
     Float(FloatGenerator),
     Object(ObjectGenerator),
+    List(ListGenerator),
     Boolean(BooleanGenerator),
     Uuid(UUIDGenerator),
 }
@@ -18,6 +20,7 @@ impl Generator {
             Generator::Int(int_gen) => int_gen.generate(rng),
             Generator::Float(float_gen) => float_gen.generate(rng),
             Generator::Object(object_gen) => object_gen.generate(rng),
+            Generator::List(list_gen) => list_gen.generate(rng),
             Generator::Boolean(boolean_gen) => boolean_gen.generate(rng),
             Generator::Uuid(uuid_gen) => uuid_gen.generate(),
         }

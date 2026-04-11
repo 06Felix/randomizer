@@ -18,6 +18,13 @@ pub enum Schema {
     },
     #[serde(rename = "object")]
     Object { properties: HashMap<String, Schema> },
+    #[serde(rename = "list")]
+    List {
+        length: Option<usize>,
+        min_length: Option<usize>,
+        max_length: Option<usize>,
+        items: Box<Schema>,
+    },
     #[serde(rename = "boolean")]
     Boolean { true_probability: i32 },
     #[serde(rename = "uuid")]

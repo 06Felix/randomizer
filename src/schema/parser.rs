@@ -61,6 +61,46 @@ mod tests {
     }
 
     #[test]
+    fn parses_list_schema_from_json_string() {
+        let json = r#"
+        {
+            "type": "list",
+            "min_length": 2,
+            "max_length": 5,
+            "items": {
+                "type": "int",
+                "min": 1,
+                "max": 10
+            }
+        }
+        "#;
+
+        let schema = generate_schema_from_json_str(json).expect("schema should parse");
+
+        match schema {
+            Schema::List {
+                length,
+                min_length,
+                max_length,
+                items,
+            } => {
+                assert_eq!(length, None);
+                assert_eq!(min_length, Some(2));
+                assert_eq!(max_length, Some(5));
+
+                match items.as_ref() {
+                    Schema::Int { min, max } => {
+                        assert_eq!(*min, Some(1));
+                        assert_eq!(*max, Some(10));
+                    }
+                    other => panic!("expected int schema for items, got {other:?}"),
+                }
+            }
+            other => panic!("expected list schema, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn returns_error_for_invalid_json_string() {
         let json = r#"{ "type": "int", "min": 1, }"#;
 

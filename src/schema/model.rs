@@ -3,6 +3,16 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StringKind {
+    Alphabetic,
+    Numeric,
+    Alphanumeric,
+    Custom,
+    Enum,
+}
+
 /// User-provided schema describing the shape of the random JSON output.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
@@ -15,6 +25,17 @@ pub enum Schema {
         min: Option<f32>,
         max: Option<f32>,
         precision: Option<u8>,
+    },
+    #[serde(rename = "string")]
+    String {
+        length: Option<usize>,
+        min_length: Option<usize>,
+        max_length: Option<usize>,
+        prefix: Option<String>,
+        suffix: Option<String>,
+        string_type: StringKind,
+        custom_charset: Option<String>,
+        enum_values: Option<Vec<String>>,
     },
     #[serde(rename = "object")]
     Object { properties: HashMap<String, Schema> },

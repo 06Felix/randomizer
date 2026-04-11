@@ -71,6 +71,7 @@ Randomizer currently supports these schema variants:
 
 - `int`
 - `float`
+- `string`
 - `object`
 - `boolean`
 - `uuid`
@@ -121,6 +122,65 @@ Fields:
 Rules:
 
 - `min` must be less than or equal to `max`
+
+### `string`
+
+String generator configuration with exact length:
+
+```json
+{
+  "type": "string",
+  "length": 8,
+  "prefix": "usr_",
+  "suffix": "_x",
+  "string_type": "alphabetic"
+}
+```
+
+String generator configuration with custom characters:
+
+```json
+{
+  "type": "string",
+  "min_length": 4,
+  "max_length": 8,
+  "string_type": "custom",
+  "custom_charset": "abc123"
+}
+```
+
+String generator configuration with enum values:
+
+```json
+{
+  "type": "string",
+  "string_type": "enum",
+  "enum_values": ["pending", "approved", "rejected"],
+  "prefix": "status_"
+}
+```
+
+Fields:
+
+- `length`: optional exact string length
+- `min_length`: optional minimum string length
+- `max_length`: optional maximum string length
+- `prefix`: optional string added before the generated value
+- `suffix`: optional string added after the generated value
+- `string_type`: required string mode, one of `alphabetic`, `numeric`, `alphanumeric`, `custom`, `enum`
+- `custom_charset`: optional charset used only when `string_type` is `custom`
+- `enum_values`: optional list of candidate values used only when `string_type` is `enum`
+
+Rules:
+
+- For `alphabetic`, `numeric`, `alphanumeric`, and `custom`, provide either `length` or both `min_length` and `max_length`
+- For `custom`, `custom_charset` is required and must not be empty
+- For `enum`, `enum_values` is required and must not be empty
+- For non-`custom` strings, `custom_charset` is ignored
+- For non-`enum` strings, `enum_values` is ignored
+- For `enum`, `length`, `min_length`, and `max_length` are ignored
+- `min_length` must be less than or equal to `max_length`
+- String lengths cannot exceed `100`
 
 ### `object`
 

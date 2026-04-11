@@ -5,12 +5,15 @@ use tracing::debug;
 use crate::{
     generator::{
         BooleanGenerator, FloatGenerator, Generator, IntGenerator, ListGenerator, ObjectGenerator,
-        UUIDGenerator,
+        StringGenerator, StringGeneratorMode, UUIDGenerator,
     },
-    schema::Schema,
+    schema::{Schema, StringKind},
 };
 
 const ABSOLUTE_MAX_LENGTH: usize = 100;
+const ALPHABETIC_CHARSET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const NUMERIC_CHARSET: &str = "0123456789";
+const ALPHANUMERIC_CHARSET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 /// Compiles a parsed schema into an executable generator tree.
 ///
@@ -44,6 +47,25 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
                 precision,
             }))
         }
+        Schema::String {
+            length,
+            min_length,
+            max_length,
+            prefix,
+            suffix,
+            string_type,
+            custom_charset,
+            enum_values,
+        } => compile_string_schema(
+            *length,
+            *min_length,
+            *max_length,
+            prefix,
+            suffix,
+            string_type,
+            custom_charset,
+            enum_values,
+        ),
         Schema::Object { properties } => {
             let mut keys: Vec<String> = properties.keys().cloned().collect();
             keys.sort();
@@ -79,7 +101,8 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
             max_length,
             items,
         } => {
-            let (min_length, max_length) = resolve_list_length(*length, *min_length, *max_length)?;
+            let (min_length, max_length) =
+                resolve_length_range(*length, *min_length, *max_length, "list")?;
             let item_generator = Box::new(compile_schema(items).map_err(|e| {
                 let e_str = e.to_string();
 
@@ -106,36 +129,115 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
     }
 }
 
-fn resolve_list_length(
+fn compile_string_schema(
     length: Option<usize>,
     min_length: Option<usize>,
     max_length: Option<usize>,
+    prefix: &Option<String>,
+    suffix: &Option<String>,
+    string_type: &StringKind,
+    custom_charset: &Option<String>,
+    enum_values: &Option<Vec<String>>,
+) -> Result<Generator, String> {
+    let prefix = prefix.clone().unwrap_or_default();
+    let suffix = suffix.clone().unwrap_or_default();
+
+    let mode = match string_type {
+        StringKind::Alphabetic => {
+            let (min_length, max_length) =
+                resolve_length_range(length, min_length, max_length, "string")?;
+            StringGeneratorMode::Charset {
+                min_length,
+                max_length,
+                charset: ALPHABETIC_CHARSET.chars().collect(),
+            }
+        }
+        StringKind::Numeric => {
+            let (min_length, max_length) =
+                resolve_length_range(length, min_length, max_length, "string")?;
+            StringGeneratorMode::Charset {
+                min_length,
+                max_length,
+                charset: NUMERIC_CHARSET.chars().collect(),
+            }
+        }
+        StringKind::Alphanumeric => {
+            let (min_length, max_length) =
+                resolve_length_range(length, min_length, max_length, "string")?;
+            StringGeneratorMode::Charset {
+                min_length,
+                max_length,
+                charset: ALPHANUMERIC_CHARSET.chars().collect(),
+            }
+        }
+        StringKind::Custom => {
+            let (min_length, max_length) =
+                resolve_length_range(length, min_length, max_length, "string")?;
+            let Some(custom_charset) = custom_charset else {
+                return Err("Error: custom strings require custom_charset".to_string());
+            };
+            if custom_charset.is_empty() {
+                return Err("Error: custom_charset cannot be empty".to_string());
+            }
+
+            StringGeneratorMode::Charset {
+                min_length,
+                max_length,
+                charset: custom_charset.chars().collect(),
+            }
+        }
+        StringKind::Enum => {
+            let Some(enum_values) = enum_values else {
+                return Err("Error: enum strings require enum_values".to_string());
+            };
+            if enum_values.is_empty() {
+                return Err("Error: enum_values cannot be empty".to_string());
+            }
+
+            StringGeneratorMode::Enum {
+                values: enum_values.clone(),
+            }
+        }
+    };
+
+    Ok(Generator::String(StringGenerator {
+        prefix,
+        suffix,
+        mode,
+    }))
+}
+
+fn resolve_length_range(
+    length: Option<usize>,
+    min_length: Option<usize>,
+    max_length: Option<usize>,
+    subject: &str,
 ) -> Result<(usize, usize), String> {
     if let Some(length) = length {
-        validate_list_length(length)?;
+        validate_length(length, subject)?;
         return Ok((length, length));
     }
 
     match (min_length, max_length) {
         (Some(min_length), Some(max_length)) => {
-            validate_list_length(min_length)?;
-            validate_list_length(max_length)?;
+            validate_length(min_length, subject)?;
+            validate_length(max_length, subject)?;
 
             if min_length > max_length {
-                return Err("Error: minLength is greater than maxLength".to_string());
+                return Err("Error: min_length is greater than max_length".to_string());
             }
 
             Ok((min_length, max_length))
         }
-        _ => Err("Error: provide either length or both minLength and maxLength".to_string()),
+        _ => Err("Error: provide either length or both min_length and max_length".to_string()),
     }
 }
 
-fn validate_list_length(length: usize) -> Result<(), String> {
+fn validate_length(length: usize, subject: &str) -> Result<(), String> {
     if length > ABSOLUTE_MAX_LENGTH {
         return Err(format!(
-            "Error: list length cannot exceed {}",
-            ABSOLUTE_MAX_LENGTH
+            "Error: {} length cannot exceed {}",
+            subject, ABSOLUTE_MAX_LENGTH
         ));
     }
 

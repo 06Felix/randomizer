@@ -6,9 +6,6 @@ pub enum StringGeneratorMode {
         max_length: usize,
         charset: Vec<char>,
     },
-    Enum {
-        values: Vec<String>,
-    },
 }
 
 pub struct StringGenerator {
@@ -34,10 +31,6 @@ impl StringGenerator {
                 }
 
                 value
-            }
-            StringGeneratorMode::Enum { values } => {
-                let index = rng.random_range(0..values.len());
-                values[index].clone()
             }
         };
 

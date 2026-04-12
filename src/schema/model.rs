@@ -10,7 +10,6 @@ pub enum StringKind {
     Numeric,
     Alphanumeric,
     Custom,
-    Enum,
 }
 
 /// User-provided schema describing the shape of the random JSON output.
@@ -35,8 +34,9 @@ pub enum Schema {
         suffix: Option<String>,
         string_type: StringKind,
         custom_charset: Option<String>,
-        enum_values: Option<Vec<String>>,
     },
+    #[serde(rename = "enum")]
+    Enum { values: Vec<serde_json::Value> },
     #[serde(rename = "object")]
     Object { properties: HashMap<String, Schema> },
     #[serde(rename = "list")]

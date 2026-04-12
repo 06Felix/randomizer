@@ -6,7 +6,7 @@ Randomizer is a schema-driven Rust service for generating structured JSON payloa
 
 - Generate a single random JSON payload with a REST API.
 - Stream random JSON payloads continuously over WebSockets.
-- Supports int, float, string, boolean, uuid, object, and list generation.
+- Supports int, float, string, enum, boolean, uuid, object, and list generation.
 
 ## Use Cases
 
@@ -82,13 +82,14 @@ shaped like:
 }
 ```
 
-`frequency` is in milliseconds and must be at least `100`.
+`frequency` is in milliseconds and must be between `100` and `10000`.
 
 ### Supported Schema Types
 
 - `int`
 - `float`
 - `string`
+- `enum`
 - `object`
 - `boolean`
 - `uuid`

@@ -5,7 +5,7 @@ use tracing::debug;
 use crate::{
     generator::{
         BooleanGenerator, FloatGenerator, Generator, IntGenerator, ListGenerator, ObjectGenerator,
-        StringGenerator, StringGeneratorMode, UUIDGenerator,
+        PrimitiveEnumGenerator, StringGenerator, StringGeneratorMode, UUIDGenerator,
     },
     schema::{Schema, StringKind},
 };
@@ -55,7 +55,6 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
             suffix,
             string_type,
             custom_charset,
-            enum_values,
         } => compile_string_schema(
             *length,
             *min_length,
@@ -64,8 +63,8 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
             suffix,
             string_type,
             custom_charset,
-            enum_values,
         ),
+        Schema::Enum { values } => compile_primitive_enum_schema(values),
         Schema::Object { properties } => {
             let mut keys: Vec<String> = properties.keys().cloned().collect();
             keys.sort();
@@ -137,7 +136,6 @@ fn compile_string_schema(
     suffix: &Option<String>,
     string_type: &StringKind,
     custom_charset: &Option<String>,
-    enum_values: &Option<Vec<String>>,
 ) -> Result<Generator, String> {
     let prefix = prefix.clone().unwrap_or_default();
     let suffix = suffix.clone().unwrap_or_default();
@@ -186,24 +184,36 @@ fn compile_string_schema(
                 charset: custom_charset.chars().collect(),
             }
         }
-        StringKind::Enum => {
-            let Some(enum_values) = enum_values else {
-                return Err("Error: enum strings require enum_values".to_string());
-            };
-            if enum_values.is_empty() {
-                return Err("Error: enum_values cannot be empty".to_string());
-            }
-
-            StringGeneratorMode::Enum {
-                values: enum_values.clone(),
-            }
-        }
     };
 
     Ok(Generator::String(StringGenerator {
         prefix,
         suffix,
         mode,
+    }))
+}
+
+fn compile_primitive_enum_schema(values: &[serde_json::Value]) -> Result<Generator, String> {
+    if values.is_empty() {
+        return Err("Error: enum values cannot be empty".to_string());
+    }
+
+    for value in values {
+        if !matches!(
+            value,
+            serde_json::Value::String(_)
+                | serde_json::Value::Number(_)
+                | serde_json::Value::Bool(_)
+        ) {
+            return Err(
+                "Error: enum values must contain only string, number, or boolean values"
+                    .to_string(),
+            );
+        }
+    }
+
+    Ok(Generator::Enum(PrimitiveEnumGenerator {
+        values: values.to_vec(),
     }))
 }
 

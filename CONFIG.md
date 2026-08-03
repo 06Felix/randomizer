@@ -2,6 +2,17 @@
 
 This document describes the configuration that exists in Randomizer today.
 
+## Server Configuration
+
+| Environment variable | Default | Description |
+| --- | --- | --- |
+| `RANDOMIZER_HOST` | `0.0.0.0` | IP address on which the server listens |
+| `RANDOMIZER_PORT` | `7263` | TCP port on which the server listens |
+| `RANDOMIZER_MAX_CONCURRENT_WS_STREAMS` | `4096` | Maximum simultaneous WebSocket streams; must be greater than zero |
+| `RUST_LOG` | `info` | Tracing filter, for example `randomizer=debug` |
+
+Invalid configuration prevents startup and reports the offending setting.
+
 ## REST Request Configuration
 
 The REST API accepts a JSON schema directly as the request body.
@@ -101,6 +112,7 @@ Fields:
 Rules:
 
 - `min` must be less than or equal to `max`
+- `precision` must be between `0` and `9`
 
 ### `float`
 
@@ -230,7 +242,7 @@ Boolean generator configuration:
 
 Fields:
 
-- `true_probability`: integer from 0 to 100 (values outside this range will be clamped)
+- `true_probability`: required integer from `0` to `100`; invalid values are rejected
 
 ### `uuid`
 
@@ -300,3 +312,17 @@ Rules:
 - `min_length` must be less than or equal to `max_length`
 - List lengths cannot exceed `100`
 - All items in a list use the same schema, but that schema can itself be another `list`, an `object`, or any supported primitive type
+
+## Error Responses
+
+REST errors, WebSocket upgrade errors, and WebSocket protocol errors use the same JSON shape:
+
+```json
+{
+  "code": "invalid_schema",
+  "message": "true_probability must be between 0 and 100, got 101"
+}
+```
+
+Stable codes currently include `invalid_request`, `invalid_schema`, `invalid_frequency`,
+`capacity_exceeded`, and `internal_error`.

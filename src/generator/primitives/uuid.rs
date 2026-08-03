@@ -1,6 +1,7 @@
+#[derive(Debug)]
 pub struct UUIDGenerator {
-    pub prefix: String,
-    pub suffix: String,
+    pub(crate) prefix: String,
+    pub(crate) suffix: String,
 }
 
 impl UUIDGenerator {

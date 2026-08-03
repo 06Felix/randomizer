@@ -8,30 +8,24 @@ use axum::{
 };
 use bytes::{BufMut, BytesMut};
 use rand::{SeedableRng, rng, rngs::SmallRng};
-use serde::Serialize;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::time::{Duration, interval};
 use tracing::{debug, warn};
 
-use crate::{compiler::compile_schema, schema::model::WsRequest, state::AppState};
+use crate::{
+    compiler::compile_schema, error::ErrorResponse, schema::model::WsRequest, state::AppState,
+};
 
 /// Frequency interval in milliseconds between WebSocket payloads (`request.frequency`).
 const MIN_FREQUENCY_MS: u64 = 100;
 const MAX_FREQUENCY_MS: u64 = 10000;
 
 /// JSON envelope for protocol errors sent as WebSocket text frames.
-#[derive(Serialize)]
-struct WsErrorBody {
-    error: String,
-}
-
-fn ws_error_frame(message: impl Into<String>) -> Utf8Bytes {
-    let body = WsErrorBody {
-        error: message.into(),
-    };
+fn ws_error_frame(code: &'static str, message: impl Into<String>) -> Utf8Bytes {
+    let body = ErrorResponse::new(code, message);
     match serde_json::to_string(&body) {
         Ok(s) => s.into(),
-        Err(_) => r#"{"error":"failed to encode error message"}"#.into(),
+        Err(_) => r#"{"code":"internal_error","message":"failed to encode error message"}"#.into(),
     }
 }
 
@@ -45,9 +39,10 @@ pub async fn stream(State(state): State<AppState>, ws: WebSocketUpgrade) -> impl
             warn!("rejected websocket: concurrent streaming connection limit reached");
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
-                axum::Json(WsErrorBody {
-                    error: "maximum concurrent streaming connections reached".to_string(),
-                }),
+                axum::Json(ErrorResponse::new(
+                    "capacity_exceeded",
+                    "maximum concurrent streaming connections reached",
+                )),
             )
                 .into_response();
         }
@@ -68,14 +63,20 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
             Err(e) => {
                 warn!(error = %e, "invalid websocket schema payload");
                 let _ = socket
-                    .send(Message::Text(ws_error_frame(format!("Invalid JSON: {e}"))))
+                    .send(Message::Text(ws_error_frame(
+                        "invalid_request",
+                        format!("invalid JSON: {e}"),
+                    )))
                     .await;
                 return;
             }
         },
         message => {
             let _ = socket
-                .send(Message::Text(ws_error_frame("Expected a schema config")))
+                .send(Message::Text(ws_error_frame(
+                    "invalid_request",
+                    "expected a schema config",
+                )))
                 .await;
             warn!(message = ?message, "unexpected first websocket message");
             return;
@@ -83,11 +84,14 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
     };
 
     let frequency = request.frequency;
-    if frequency < MIN_FREQUENCY_MS || frequency > MAX_FREQUENCY_MS {
+    if !(MIN_FREQUENCY_MS..=MAX_FREQUENCY_MS).contains(&frequency) {
         let _ = socket
-            .send(Message::Text(ws_error_frame(format!(
-                "frequency must be between {MIN_FREQUENCY_MS} ms and {MAX_FREQUENCY_MS} ms"
-            ))))
+            .send(Message::Text(ws_error_frame(
+                "invalid_frequency",
+                format!(
+                    "frequency must be between {MIN_FREQUENCY_MS} ms and {MAX_FREQUENCY_MS} ms"
+                ),
+            )))
             .await;
         return;
     }
@@ -99,7 +103,12 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
         }
         Err(e) => {
             warn!(error = %e, "websocket schema compilation failed");
-            let _ = socket.send(Message::Text(ws_error_frame(e))).await;
+            let _ = socket
+                .send(Message::Text(ws_error_frame(
+                    "invalid_schema",
+                    e.to_string(),
+                )))
+                .await;
             return;
         }
     };

@@ -1,9 +1,8 @@
-#![allow(dead_code)]
 use std::collections::HashMap;
 
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum StringKind {
     Alphabetic,

@@ -39,6 +39,9 @@ After installation, run the below command. This starts the service at `0.0.0.0:7
 randomizer
 ```
 
+The bind address, port, WebSocket connection limit, and log filter can be configured with
+environment variables documented in [CONFIG.md](CONFIG.md).
+
 The endpoint for the REST API is `/generate` and for WebSocket is `/stream`. For more details on configuration go to [CONFIG.md](CONFIG.md)
 
 ## Usage
@@ -97,12 +100,12 @@ shaped like:
 
 ## Known Issues
 
-No known issue, so can we consider that an issue??
+Generated output is intentionally non-deterministic; seed-based replay is not supported yet.
 
 ## Up Next
 
-- cache configs in REST API
-- standardize error types
+- Seed-based deterministic generation and replay
+- Request resource limits and graceful shutdown
 
 ## Changelog (Latest Version)
 

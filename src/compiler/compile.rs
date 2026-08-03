@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tracing::debug;
 
 use crate::{
+    error::CompileError,
     generator::{
         BooleanGenerator, FloatGenerator, Generator, IntGenerator, ListGenerator, ObjectGenerator,
         PrimitiveEnumGenerator, StringGenerator, StringGeneratorMode, UUIDGenerator,
@@ -11,6 +12,7 @@ use crate::{
 };
 
 const ABSOLUTE_MAX_LENGTH: usize = 100;
+pub const MAX_FLOAT_PRECISION: u8 = 9;
 const ALPHABETIC_CHARSET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const NUMERIC_CHARSET: &str = "0123456789";
 const ALPHANUMERIC_CHARSET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -18,7 +20,7 @@ const ALPHANUMERIC_CHARSET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR
 /// Compiles a parsed schema into an executable generator tree.
 ///
 /// Returns an error when a schema contains invalid bounds.
-pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
+pub fn compile_schema(schema: &Schema) -> Result<Generator, CompileError> {
     debug!(schema = ?schema, "compiling schema");
 
     match schema {
@@ -26,7 +28,10 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
             let min = min.unwrap_or(i32::MIN);
             let max = max.unwrap_or(i32::MAX);
             if min > max {
-                return Err("Error: min is greater than max".to_string());
+                return Err(CompileError::InvalidRange {
+                    min: min.to_string(),
+                    max: max.to_string(),
+                });
             }
             Ok(Generator::Int(IntGenerator { min, max }))
         }
@@ -39,7 +44,16 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
             let max = max.unwrap_or(1.0);
             let precision = precision.unwrap_or(2);
             if min > max {
-                return Err("Error: min is greater than max".to_string());
+                return Err(CompileError::InvalidRange {
+                    min: min.to_string(),
+                    max: max.to_string(),
+                });
+            }
+            if precision > MAX_FLOAT_PRECISION {
+                return Err(CompileError::InvalidPrecision {
+                    precision,
+                    maximum: MAX_FLOAT_PRECISION,
+                });
             }
             Ok(Generator::Float(FloatGenerator {
                 min,
@@ -66,31 +80,14 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
         ),
         Schema::Enum { values } => compile_primitive_enum_schema(values),
         Schema::Object { properties } => {
-            let mut keys: Vec<String> = properties.keys().cloned().collect();
-            keys.sort();
+            let mut entries: Vec<_> = properties.iter().collect();
+            entries.sort_by(|(left, _), (right, _)| left.cmp(right));
 
             let mut fields = Vec::with_capacity(properties.len());
-            for key in keys {
-                let Some(value) = properties.get(&key) else {
-                    return Err(format!(
-                        "internal compile error: property {key:?} missing from schema map"
-                    ));
-                };
-                let generator = compile_schema(value).map_err(|e| {
-                    let e_str = e.to_string();
+            for (key, value) in entries {
+                let generator = compile_schema(value).map_err(|error| error.at_path(key))?;
 
-                    if e_str.starts_with("Error: ") {
-                        format!(
-                            "{}: {}",
-                            key,
-                            e_str.strip_prefix("Error: ").unwrap_or(&e_str)
-                        )
-                    } else {
-                        format!("Error in {}.{}", key, e_str)
-                    }
-                })?;
-
-                fields.push((Arc::from(key.into_boxed_str()), generator));
+                fields.push((Arc::from(key.as_str()), generator));
             }
             Ok(Generator::Object(ObjectGenerator { fields }))
         }
@@ -102,15 +99,8 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
         } => {
             let (min_length, max_length) =
                 resolve_length_range(*length, *min_length, *max_length, "list")?;
-            let item_generator = Box::new(compile_schema(items).map_err(|e| {
-                let e_str = e.to_string();
-
-                if e_str.starts_with("Error: ") {
-                    format!("items: {}", e_str.strip_prefix("Error: ").unwrap_or(&e_str))
-                } else {
-                    format!("Error in items.{}", e_str)
-                }
-            })?);
+            let item_generator =
+                Box::new(compile_schema(items).map_err(|error| error.at_path("items"))?);
 
             Ok(Generator::List(ListGenerator {
                 min_length,
@@ -118,9 +108,13 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, String> {
                 item_generator,
             }))
         }
-        Schema::Boolean { true_probability } => Ok(Generator::Boolean(BooleanGenerator {
-            true_probability: *true_probability,
-        })),
+        Schema::Boolean { true_probability } => {
+            let true_probability = u8::try_from(*true_probability)
+                .ok()
+                .filter(|probability| *probability <= 100)
+                .ok_or(CompileError::InvalidProbability(*true_probability))?;
+            Ok(Generator::Boolean(BooleanGenerator { true_probability }))
+        }
         Schema::Uuid { prefix, suffix } => Ok(Generator::Uuid(UUIDGenerator {
             prefix: prefix.clone().unwrap_or_default(),
             suffix: suffix.clone().unwrap_or_default(),
@@ -136,7 +130,7 @@ fn compile_string_schema(
     suffix: &Option<String>,
     string_type: &StringKind,
     custom_charset: &Option<String>,
-) -> Result<Generator, String> {
+) -> Result<Generator, CompileError> {
     let prefix = prefix.clone().unwrap_or_default();
     let suffix = suffix.clone().unwrap_or_default();
 
@@ -172,10 +166,10 @@ fn compile_string_schema(
             let (min_length, max_length) =
                 resolve_length_range(length, min_length, max_length, "string")?;
             let Some(custom_charset) = custom_charset else {
-                return Err("Error: custom strings require custom_charset".to_string());
+                return Err(CompileError::MissingCustomCharset);
             };
             if custom_charset.is_empty() {
-                return Err("Error: custom_charset cannot be empty".to_string());
+                return Err(CompileError::EmptyCustomCharset);
             }
 
             StringGeneratorMode::Charset {
@@ -193,9 +187,9 @@ fn compile_string_schema(
     }))
 }
 
-fn compile_primitive_enum_schema(values: &[serde_json::Value]) -> Result<Generator, String> {
+fn compile_primitive_enum_schema(values: &[serde_json::Value]) -> Result<Generator, CompileError> {
     if values.is_empty() {
-        return Err("Error: enum values cannot be empty".to_string());
+        return Err(CompileError::EmptyEnum);
     }
 
     for value in values {
@@ -205,10 +199,7 @@ fn compile_primitive_enum_schema(values: &[serde_json::Value]) -> Result<Generat
                 | serde_json::Value::Number(_)
                 | serde_json::Value::Bool(_)
         ) {
-            return Err(
-                "Error: enum values must contain only string, number, or boolean values"
-                    .to_string(),
-            );
+            return Err(CompileError::InvalidEnumValue);
         }
     }
 
@@ -221,8 +212,8 @@ fn resolve_length_range(
     length: Option<usize>,
     min_length: Option<usize>,
     max_length: Option<usize>,
-    subject: &str,
-) -> Result<(usize, usize), String> {
+    subject: &'static str,
+) -> Result<(usize, usize), CompileError> {
     if let Some(length) = length {
         validate_length(length, subject)?;
         return Ok((length, length));
@@ -234,22 +225,120 @@ fn resolve_length_range(
             validate_length(max_length, subject)?;
 
             if min_length > max_length {
-                return Err("Error: min_length is greater than max_length".to_string());
+                return Err(CompileError::InvalidLengthRange { subject });
             }
 
             Ok((min_length, max_length))
         }
-        _ => Err("Error: provide either length or both min_length and max_length".to_string()),
+        _ => Err(CompileError::MissingLength { subject }),
     }
 }
 
-fn validate_length(length: usize, subject: &str) -> Result<(), String> {
+fn validate_length(length: usize, subject: &'static str) -> Result<(), CompileError> {
     if length > ABSOLUTE_MAX_LENGTH {
-        return Err(format!(
-            "Error: {} length cannot exceed {}",
-            subject, ABSOLUTE_MAX_LENGTH
-        ));
+        return Err(CompileError::LengthTooLarge {
+            subject,
+            maximum: ABSOLUTE_MAX_LENGTH,
+        });
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn rejects_invalid_numeric_constraints() {
+        assert!(matches!(
+            compile_schema(&Schema::Int {
+                min: Some(2),
+                max: Some(1),
+            }),
+            Err(CompileError::InvalidRange { .. })
+        ));
+        assert!(matches!(
+            compile_schema(&Schema::Float {
+                min: None,
+                max: None,
+                precision: Some(MAX_FLOAT_PRECISION + 1),
+            }),
+            Err(CompileError::InvalidPrecision { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_probability_outside_percentage_range() {
+        for probability in [-1, 101] {
+            assert_eq!(
+                compile_schema(&Schema::Boolean {
+                    true_probability: probability,
+                })
+                .unwrap_err(),
+                CompileError::InvalidProbability(probability)
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_string_enum_and_list_constraints() {
+        assert_eq!(
+            compile_schema(&Schema::String {
+                length: Some(1),
+                min_length: None,
+                max_length: None,
+                prefix: None,
+                suffix: None,
+                string_type: StringKind::Custom,
+                custom_charset: None,
+            })
+            .unwrap_err(),
+            CompileError::MissingCustomCharset
+        );
+        assert_eq!(
+            compile_schema(&Schema::Enum { values: vec![] }).unwrap_err(),
+            CompileError::EmptyEnum
+        );
+        assert_eq!(
+            compile_schema(&Schema::Enum {
+                values: vec![json!(null)],
+            })
+            .unwrap_err(),
+            CompileError::InvalidEnumValue
+        );
+        assert!(matches!(
+            compile_schema(&Schema::List {
+                length: None,
+                min_length: Some(3),
+                max_length: Some(2),
+                items: Box::new(Schema::Boolean {
+                    true_probability: 50,
+                }),
+            }),
+            Err(CompileError::InvalidLengthRange { subject: "list" })
+        ));
+    }
+
+    #[test]
+    fn adds_nested_property_path_to_errors() {
+        let schema = Schema::Object {
+            properties: HashMap::from([(
+                "score".to_string(),
+                Schema::Float {
+                    min: None,
+                    max: None,
+                    precision: Some(10),
+                },
+            )]),
+        };
+        assert_eq!(
+            compile_schema(&schema).unwrap_err().to_string(),
+            "score: precision 10 exceeds the maximum supported precision 9"
+        );
+    }
 }

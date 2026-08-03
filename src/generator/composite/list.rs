@@ -2,10 +2,11 @@ use rand::{Rng, RngExt};
 
 use crate::generator::Generator;
 
+#[derive(Debug)]
 pub struct ListGenerator {
-    pub min_length: usize,
-    pub max_length: usize,
-    pub item_generator: Box<Generator>,
+    pub(crate) min_length: usize,
+    pub(crate) max_length: usize,
+    pub(crate) item_generator: Box<Generator>,
 }
 
 impl ListGenerator {

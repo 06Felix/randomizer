@@ -1,14 +1,11 @@
 use rand::{Rng, RngExt};
 
-/// Maximum decimal places applied when rounding generated floats for JSON output.
-/// Larger values risk `powi` overflow and exceed [`f32`] meaningful precision.
-const MAX_ROUNDING_DECIMAL_PLACES: i32 = 9;
-
 /// Generates floating-point values within an inclusive range.
+#[derive(Debug)]
 pub struct FloatGenerator {
-    pub min: f32,
-    pub max: f32,
-    pub precision: u8,
+    pub(crate) min: f32,
+    pub(crate) max: f32,
+    pub(crate) precision: u8,
 }
 
 impl FloatGenerator {
@@ -24,7 +21,7 @@ impl FloatGenerator {
 
 fn round_to_decimal_places(value: f32, precision: u8) -> f64 {
     let v = value as f64;
-    let prec = (precision as i32).clamp(0, MAX_ROUNDING_DECIMAL_PLACES);
+    let prec = i32::from(precision);
     if prec == 0 {
         return v.round();
     }

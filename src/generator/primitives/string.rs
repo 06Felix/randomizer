@@ -1,5 +1,6 @@
 use rand::{Rng, RngExt};
 
+#[derive(Debug)]
 pub enum StringGeneratorMode {
     Charset {
         min_length: usize,
@@ -8,10 +9,11 @@ pub enum StringGeneratorMode {
     },
 }
 
+#[derive(Debug)]
 pub struct StringGenerator {
-    pub prefix: String,
-    pub suffix: String,
-    pub mode: StringGeneratorMode,
+    pub(crate) prefix: String,
+    pub(crate) suffix: String,
+    pub(crate) mode: StringGeneratorMode,
 }
 
 impl StringGenerator {

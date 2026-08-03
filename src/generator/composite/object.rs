@@ -3,9 +3,10 @@ use std::sync::Arc;
 use crate::generator::Generator;
 
 /// Generates JSON objects by delegating generation to per-field generators.
+#[derive(Debug)]
 pub struct ObjectGenerator {
     /// Sorted by field name for stable output. Keys are shared via `Arc` to keep compiled plans compact.
-    pub fields: Vec<(Arc<str>, Generator)>,
+    pub(crate) fields: Vec<(Arc<str>, Generator)>,
 }
 
 impl ObjectGenerator {

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use super::model::Schema;
 
 pub fn generate_schema_from_json_str(json: &str) -> Result<Schema, serde_json::Error> {

@@ -1,9 +1,10 @@
 use rand::{Rng, RngExt};
 
 /// Generates integers within an inclusive range.
+#[derive(Debug)]
 pub struct IntGenerator {
-    pub min: i32,
-    pub max: i32,
+    pub(crate) min: i32,
+    pub(crate) max: i32,
 }
 
 impl IntGenerator {

@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 pub mod model;
 pub mod parser;
 

@@ -1,7 +1,8 @@
 use rand::{Rng, RngExt};
 
+#[derive(Debug)]
 pub struct PrimitiveEnumGenerator {
-    pub values: Vec<serde_json::Value>,
+    pub(crate) values: Vec<serde_json::Value>,
 }
 
 impl PrimitiveEnumGenerator {

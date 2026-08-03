@@ -1,13 +1,13 @@
 use rand::{Rng, RngExt};
 
-/// Generates integers within an inclusive range.
+/// Generates booleans using an integer percentage in the inclusive range 0..=100.
+#[derive(Debug)]
 pub struct BooleanGenerator {
-    pub true_probability: i32,
+    pub(crate) true_probability: u8,
 }
 
 impl BooleanGenerator {
     pub fn generate(&self, rng: &mut impl Rng) -> serde_json::Value {
-        let true_probability = self.true_probability.clamp(0, 100);
-        serde_json::json!(rng.random_range(0..=100) < true_probability)
+        serde_json::json!(rng.random_range(0..100) < self.true_probability)
     }
 }

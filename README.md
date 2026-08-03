@@ -54,13 +54,21 @@ Generate one random JSON payload:
 curl -X POST http://localhost:7263/generate \
   -H "Content-Type: application/json" \
   -d '{
-    "type": "object",
-    "properties": {
-      "age": { "type": "int", "min": 18, "max": 65 },
-      "score": { "type": "float", "min": 0.5, "max": 9.5, "precision": 2 }
-    }
+    "schema": {
+      "type": "object",
+      "properties": {
+        "age": { "type": "int", "min": 18, "max": 65 },
+        "score": { "type": "float", "min": 0.5, "max": 9.5, "precision": 2 }
+      }
+    },
+    "seed": 12345,
+    "sequence": 0
   }'
 ```
+
+Every result contains the generated value plus replay metadata. Omit `seed` to generate one,
+then reuse the returned `seed`, `sequence`, and `generator_version` with the same schema to
+reproduce the value exactly.
 
 ### WebSocket API
 
@@ -100,11 +108,11 @@ shaped like:
 
 ## Known Issues
 
-Generated output is intentionally non-deterministic; seed-based replay is not supported yet.
+Only generator version `1` is currently supported; older versions must remain available before
+generation semantics can evolve without breaking replay.
 
 ## Up Next
 
-- Seed-based deterministic generation and replay
 - Request resource limits and graceful shutdown
 
 ## Changelog (Latest Version)

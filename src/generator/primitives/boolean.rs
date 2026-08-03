@@ -1,4 +1,4 @@
-use rand::{Rng, RngExt};
+use crate::generation::StableRng;
 
 /// Generates booleans using an integer percentage in the inclusive range 0..=100.
 #[derive(Debug)]
@@ -7,7 +7,7 @@ pub struct BooleanGenerator {
 }
 
 impl BooleanGenerator {
-    pub fn generate(&self, rng: &mut impl Rng) -> serde_json::Value {
-        serde_json::json!(rng.random_range(0..100) < self.true_probability)
+    pub(crate) fn generate(&self, rng: &mut StableRng) -> serde_json::Value {
+        serde_json::json!(rng.below(100) < u64::from(self.true_probability))
     }
 }

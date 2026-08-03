@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+use crate::generation::GenerationOptions;
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum StringKind {
     Alphabetic,
@@ -12,7 +14,7 @@ pub enum StringKind {
 }
 
 /// User-provided schema describing the shape of the random JSON output.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 #[serde(deny_unknown_fields)]
 pub enum Schema {
@@ -60,4 +62,55 @@ pub enum Schema {
 pub struct WsRequest {
     pub schema: Schema,
     pub frequency: u64,
+    pub seed: Option<u64>,
+    pub sequence: Option<u64>,
+    pub generator_version: Option<String>,
+    pub contract_hash: Option<String>,
+}
+
+impl WsRequest {
+    pub fn generation_options(&self) -> GenerationOptions {
+        GenerationOptions {
+            seed: self.seed,
+            sequence: self.sequence,
+            generator_version: self.generator_version.clone(),
+            contract_hash: self.contract_hash.clone(),
+        }
+    }
+}
+
+/// REST request envelope for deterministic generation and replay.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateRequest {
+    pub schema: Schema,
+    pub seed: Option<u64>,
+    pub sequence: Option<u64>,
+    pub generator_version: Option<String>,
+    pub contract_hash: Option<String>,
+}
+
+/// Accepts the deterministic envelope and the original raw-schema request for compatibility.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum RestGenerateRequest {
+    Envelope(GenerateRequest),
+    Schema(Schema),
+}
+
+impl RestGenerateRequest {
+    pub fn into_parts(self) -> (Schema, GenerationOptions) {
+        match self {
+            Self::Envelope(request) => (
+                request.schema,
+                GenerationOptions {
+                    seed: request.seed,
+                    sequence: request.sequence,
+                    generator_version: request.generator_version,
+                    contract_hash: request.contract_hash,
+                },
+            ),
+            Self::Schema(schema) => (schema, GenerationOptions::default()),
+        }
+    }
 }

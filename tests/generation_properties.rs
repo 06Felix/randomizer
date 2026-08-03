@@ -1,6 +1,18 @@
 use proptest::prelude::*;
-use rand::{SeedableRng, rngs::SmallRng};
-use randomizer::{compiler::compile_schema, schema::Schema};
+use randomizer::{
+    compiler::compile_schema,
+    generation::{GENERATOR_VERSION, GenerationContext},
+    schema::Schema,
+};
+
+fn context(sequence: u64) -> GenerationContext {
+    GenerationContext {
+        seed: 42,
+        sequence,
+        generator_version: GENERATOR_VERSION.to_string(),
+        contract_hash: "property-test".to_string(),
+    }
+}
 
 proptest! {
     #[test]
@@ -13,10 +25,8 @@ proptest! {
             min: Some(min),
             max: Some(max),
         }).unwrap();
-        let mut rng = SmallRng::seed_from_u64(42);
-
-        for _ in 0..100 {
-            let value = generator.generate(&mut rng).as_i64().unwrap();
+        for sequence in 0..100 {
+            let value = generator.generate(&context(sequence)).as_i64().unwrap();
             prop_assert!((i64::from(min)..=i64::from(max)).contains(&value));
         }
     }
@@ -33,10 +43,8 @@ proptest! {
             max_length: Some(max),
             items: Box::new(Schema::Boolean { true_probability: 50 }),
         }).unwrap();
-        let mut rng = SmallRng::seed_from_u64(42);
-
-        for _ in 0..20 {
-            let length = generator.generate(&mut rng).as_array().unwrap().len();
+        for sequence in 0..20 {
+            let length = generator.generate(&context(sequence)).as_array().unwrap().len();
             prop_assert!((min..=max).contains(&length));
         }
     }

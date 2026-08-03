@@ -1,4 +1,4 @@
-use rand::{Rng, RngExt};
+use crate::generation::StableRng;
 
 /// Generates integers within an inclusive range.
 #[derive(Debug)]
@@ -8,8 +8,8 @@ pub struct IntGenerator {
 }
 
 impl IntGenerator {
-    pub fn generate(&self, rng: &mut impl Rng) -> serde_json::Value {
-        let value = rng.random_range(self.min..=self.max);
+    pub(crate) fn generate(&self, rng: &mut StableRng) -> serde_json::Value {
+        let value = rng.i32_inclusive(self.min, self.max);
         serde_json::json!(value)
     }
 }

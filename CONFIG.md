@@ -13,28 +13,68 @@ This document describes the configuration that exists in Randomizer today.
 
 Invalid configuration prevents startup and reports the offending setting.
 
+## Deterministic Generation and Replay
+
+Randomizer derives each event independently from `seed + sequence`. Every response returns:
+
+```json
+{
+  "value": { "age": 42 },
+  "metadata": {
+    "seed": 12345,
+    "sequence": 0,
+    "generator_version": "1",
+    "contract_hash": "<sha256>"
+  }
+}
+```
+
+- `seed`: optional unsigned integer. A portable random seed is generated and returned when absent.
+- `sequence`: optional unsigned integer, default `0`. WebSocket streams increment it per event.
+- `generator_version`: optional behavior version, currently `"1"`. Unsupported versions are rejected.
+- `contract_hash`: optional SHA-256 assertion. If supplied, it must match the canonical schema.
+
+Exact replay requires the same schema, seed, sequence, and generator version. Supplying the
+returned contract hash additionally protects against accidentally replaying a modified schema.
+
+### Stable RNG contract
+
+Generator version `1` uses the repository-owned SplitMix64 algorithm. An event initializes its
+stream with wrapping unsigned `seed + sequence × 0xd1342543de82ef95`; the odd sequence multiplier
+assigns a distinct initial 64-bit state to every sequence for a fixed seed. Bounded integer selection
+uses rejection sampling. This algorithm does not depend on `rand`'s internal generators. Schemas are
+parsed into the typed model, recursively sorted by object key, serialized without insignificant
+whitespace, and SHA-256 hashed. Any change to these rules or generation semantics requires a new
+generator version. SplitMix64 is deterministic rather than cryptographically secure; generated
+values must not be used as passwords, tokens, keys, or other security-sensitive material.
+
 ## REST Request Configuration
 
-The REST API accepts a JSON schema directly as the request body.
+The REST API accepts an envelope containing `schema` and optional replay fields. The original raw
+schema body remains accepted, but the envelope is required to supply replay inputs.
 
 Example:
 
 ```json
 {
-  "type": "object",
-  "properties": {
-    "age": {
-      "type": "int",
-      "min": 18,
-      "max": 65
-    },
-    "score": {
-      "type": "float",
-      "min": 0.5,
-      "max": 9.5,
-      "precision": 2
+  "schema": {
+    "type": "object",
+    "properties": {
+      "age": {
+        "type": "int",
+        "min": 18,
+        "max": 65
+      },
+      "score": {
+        "type": "float",
+        "min": 0.5,
+        "max": 9.5,
+        "precision": 2
+      }
     }
-  }
+  },
+  "seed": 12345,
+  "sequence": 0
 }
 ```
 
@@ -44,6 +84,7 @@ The WebSocket API expects a single initial JSON message containing:
 
 - `schema`: the generation schema
 - `frequency`: generation interval in milliseconds
+- `seed`, `sequence`, `generator_version`, `contract_hash`: optional deterministic replay fields
 
 Example:
 

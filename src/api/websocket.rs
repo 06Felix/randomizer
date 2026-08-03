@@ -7,13 +7,15 @@ use axum::{
     response::IntoResponse,
 };
 use bytes::{BufMut, BytesMut};
-use rand::{SeedableRng, rng, rngs::SmallRng};
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::time::{Duration, interval};
 use tracing::{debug, warn};
 
 use crate::{
-    compiler::compile_schema, error::ErrorResponse, schema::model::WsRequest, state::AppState,
+    error::{ErrorResponse, GenerationError},
+    generation::GenerationPlan,
+    schema::model::WsRequest,
+    state::AppState,
 };
 
 /// Frequency interval in milliseconds between WebSocket payloads (`request.frequency`).
@@ -96,36 +98,46 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
         return;
     }
 
-    let generator = match compile_schema(&request.schema) {
-        Ok(gnr) => {
-            debug!("compiled websocket generator");
-            gnr
+    let generation_options = request.generation_options();
+    let mut sequence = generation_options.sequence.unwrap_or(0);
+    let plan = match GenerationPlan::compile(&request.schema, &generation_options) {
+        Ok(plan) => {
+            debug!(
+                seed = plan.seed(),
+                contract_hash = plan.contract_hash(),
+                "compiled websocket generation plan"
+            );
+            plan
         }
         Err(e) => {
-            warn!(error = %e, "websocket schema compilation failed");
+            warn!(error = %e, "websocket generation plan failed");
+            let code = match &e {
+                GenerationError::InvalidSchema(_) => "invalid_schema",
+                GenerationError::UnsupportedGeneratorVersion { .. } => {
+                    "unsupported_generator_version"
+                }
+                GenerationError::ContractHashMismatch { .. } => "contract_hash_mismatch",
+                GenerationError::Canonicalization(_) => "internal_error",
+            };
             let _ = socket
-                .send(Message::Text(ws_error_frame(
-                    "invalid_schema",
-                    e.to_string(),
-                )))
+                .send(Message::Text(ws_error_frame(code, e.to_string())))
                 .await;
             return;
         }
     };
 
     let mut ticker = interval(Duration::from_millis(frequency));
-    let mut rng = SmallRng::from_rng(&mut rng());
     let mut json_buf = BytesMut::with_capacity(256);
 
     loop {
         tokio::select! {
             _ = ticker.tick() => {
-                let value = generator.generate(&mut rng);
-                debug!(response = %value, "sending websocket value");
+                let result = plan.generate(sequence);
+                debug!(response = %result.value, metadata = ?result.metadata, "sending websocket value");
 
                 json_buf.clear();
                 let mut writer = (&mut json_buf).writer();
-                if serde_json::to_writer(&mut writer, &value).is_err() {
+                if serde_json::to_writer(&mut writer, &result).is_err() {
                     debug!("failed to serialize websocket value");
                     break;
                 }
@@ -144,6 +156,12 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
                     debug!("websocket client disconnected during send");
                     break;
                 }
+
+                let Some(next_sequence) = sequence.checked_add(1) else {
+                    debug!("maximum sequence emitted; closing websocket stream");
+                    break;
+                };
+                sequence = next_sequence;
             }
 
             msg = socket.recv() => {

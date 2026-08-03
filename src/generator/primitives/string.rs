@@ -1,4 +1,4 @@
-use rand::{Rng, RngExt};
+use crate::generation::StableRng;
 
 #[derive(Debug)]
 pub enum StringGeneratorMode {
@@ -17,18 +17,18 @@ pub struct StringGenerator {
 }
 
 impl StringGenerator {
-    pub fn generate(&self, rng: &mut impl Rng) -> serde_json::Value {
+    pub(crate) fn generate(&self, rng: &mut StableRng) -> serde_json::Value {
         let value = match &self.mode {
             StringGeneratorMode::Charset {
                 min_length,
                 max_length,
                 charset,
             } => {
-                let length = rng.random_range(*min_length..=*max_length);
+                let length = rng.usize_inclusive(*min_length, *max_length);
                 let mut value = String::with_capacity(length);
 
                 for _ in 0..length {
-                    let index = rng.random_range(0..charset.len());
+                    let index = rng.usize_inclusive(0, charset.len() - 1);
                     value.push(charset[index]);
                 }
 

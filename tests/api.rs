@@ -5,25 +5,47 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use futures_util::{SinkExt, StreamExt};
-use randomizer::{build_router, error::ErrorResponse};
+use randomizer::{
+    build_router,
+    error::ErrorResponse,
+    generation::{GENERATOR_VERSION, GenerationResult},
+};
 use serde_json::{Value, json};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tower::ServiceExt;
 
 #[tokio::test]
 async fn rest_generates_json_from_valid_schema() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "id": {"type": "int", "min": 5, "max": 5}
+        }
+    });
     let response = build_router(4)
-        .oneshot(json_request(json!({
-            "type": "object",
-            "properties": {
-                "id": {"type": "int", "min": 5, "max": 5}
-            }
-        })))
+        .oneshot(json_request(schema.clone()))
         .await
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response_json(response).await, json!({"id": 5}));
+    let result: GenerationResult = serde_json::from_value(response_json(response).await).unwrap();
+    assert_eq!(result.value, json!({"id": 5}));
+    assert_eq!(result.metadata.sequence, 0);
+    assert_eq!(result.metadata.generator_version, GENERATOR_VERSION);
+    assert_eq!(result.metadata.contract_hash.len(), 64);
+
+    let replay = build_router(4)
+        .oneshot(json_request(json!({
+            "schema": schema,
+            "seed": result.metadata.seed,
+            "sequence": result.metadata.sequence,
+            "generator_version": result.metadata.generator_version.clone(),
+            "contract_hash": result.metadata.contract_hash.clone()
+        })))
+        .await
+        .unwrap();
+    let replay: GenerationResult = serde_json::from_value(response_json(replay).await).unwrap();
+    assert_eq!(result, replay);
 }
 
 #[tokio::test]
@@ -49,6 +71,42 @@ async fn rest_returns_structured_errors_for_invalid_input() {
     assert_eq!(malformed.status(), StatusCode::BAD_REQUEST);
     let body: ErrorResponse = serde_json::from_value(response_json(malformed).await).unwrap();
     assert_eq!(body.code, "invalid_request");
+
+    let unknown_replay_field = build_router(4)
+        .oneshot(json_request(json!({
+            "schema": {"type": "int"},
+            "unknown": true
+        })))
+        .await
+        .unwrap();
+    assert_eq!(unknown_replay_field.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn rest_replays_exactly_from_returned_metadata() {
+    let request = json!({
+        "schema": {
+            "type": "uuid",
+            "prefix": "evt_"
+        },
+        "seed": 12345,
+        "sequence": 9,
+        "generator_version": GENERATOR_VERSION
+    });
+    let first = build_router(4)
+        .oneshot(json_request(request.clone()))
+        .await
+        .unwrap();
+    let replay = build_router(4)
+        .oneshot(json_request(request))
+        .await
+        .unwrap();
+
+    let first: GenerationResult = serde_json::from_value(response_json(first).await).unwrap();
+    let replay: GenerationResult = serde_json::from_value(response_json(replay).await).unwrap();
+    assert_eq!(first, replay);
+    assert_eq!(first.metadata.seed, 12345);
+    assert_eq!(first.metadata.sequence, 9);
 }
 
 #[tokio::test]
@@ -61,6 +119,8 @@ async fn websocket_streams_values_and_reports_protocol_errors() {
         .send(Message::Text(
             json!({
                 "frequency": 100,
+                "seed": 777,
+                "sequence": 5,
                 "schema": {"type": "int", "min": 9, "max": 9}
             })
             .to_string()
@@ -73,7 +133,20 @@ async fn websocket_streams_values_and_reports_protocol_errors() {
         .unwrap()
         .unwrap()
         .unwrap();
-    assert_eq!(message.into_text().unwrap(), "9");
+    let result: GenerationResult = serde_json::from_str(&message.into_text().unwrap()).unwrap();
+    assert_eq!(result.value, json!(9));
+    assert_eq!(result.metadata.seed, 777);
+    assert_eq!(result.metadata.sequence, 5);
+    assert_eq!(result.metadata.generator_version, GENERATOR_VERSION);
+
+    let next = tokio::time::timeout(Duration::from_secs(2), socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let next: GenerationResult = serde_json::from_str(&next.into_text().unwrap()).unwrap();
+    assert_eq!(next.metadata.seed, 777);
+    assert_eq!(next.metadata.sequence, 6);
     socket.close(None).await.unwrap();
 
     let (mut socket, _) = connect_async(format!("ws://{address}/stream"))

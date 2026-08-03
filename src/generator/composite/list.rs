@@ -1,6 +1,4 @@
-use rand::{Rng, RngExt};
-
-use crate::generator::Generator;
+use crate::{generation::StableRng, generator::Generator};
 
 #[derive(Debug)]
 pub struct ListGenerator {
@@ -10,12 +8,12 @@ pub struct ListGenerator {
 }
 
 impl ListGenerator {
-    pub fn generate(&self, rng: &mut impl Rng) -> serde_json::Value {
-        let length = rng.random_range(self.min_length..=self.max_length);
+    pub(crate) fn generate(&self, rng: &mut StableRng) -> serde_json::Value {
+        let length = rng.usize_inclusive(self.min_length, self.max_length);
         let mut result = Vec::with_capacity(length);
 
         for _ in 0..length {
-            result.push(self.item_generator.generate(rng));
+            result.push(self.item_generator.generate_with_rng(rng));
         }
 
         serde_json::Value::Array(result)

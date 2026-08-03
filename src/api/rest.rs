@@ -1,23 +1,26 @@
 use axum::{Json, extract::rejection::JsonRejection};
-use rand::rng;
 use tracing::{debug, warn};
 
-use crate::{error::ApiError, generation::generate_value, schema::Schema};
+use crate::{
+    error::ApiError,
+    generation::{GenerationResult, generate_value},
+    schema::RestGenerateRequest,
+};
 
-/// Compiles an incoming schema and returns one random JSON value for it.
+/// Compiles an incoming schema and returns one value with deterministic replay metadata.
 ///
 /// Invalid schema bounds are surfaced as `400 Bad Request`.
 pub async fn generate(
-    payload: Result<Json<Schema>, JsonRejection>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let Json(body) = payload.map_err(|error| ApiError::invalid_request(error.body_text()))?;
-    debug!(schema = ?body, "received random generation request");
+    payload: Result<Json<RestGenerateRequest>, JsonRejection>,
+) -> Result<Json<GenerationResult>, ApiError> {
+    let Json(request) = payload.map_err(|error| ApiError::invalid_request(error.body_text()))?;
+    let (schema, options) = request.into_parts();
+    debug!(schema = ?schema, generation = ?options, "received generation request");
 
-    let mut rng = rng();
-    let value = generate_value(&body, &mut rng).map_err(|error| {
-        warn!(error = %error, "schema compilation failed");
-        ApiError::invalid_schema(error.to_string())
+    let result = generate_value(&schema, &options).map_err(|error| {
+        warn!(error = %error, "generation failed");
+        ApiError::from(error)
     })?;
-    debug!(response = %value, "generated random response");
-    Ok(Json(value))
+    debug!(response = %result.value, metadata = ?result.metadata, "generated response");
+    Ok(Json(result))
 }

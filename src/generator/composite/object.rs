@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::generator::Generator;
+use crate::{generation::StableRng, generator::Generator};
 
 /// Generates JSON objects by delegating generation to per-field generators.
 #[derive(Debug)]
@@ -10,10 +10,10 @@ pub struct ObjectGenerator {
 }
 
 impl ObjectGenerator {
-    pub fn generate(&self, rng: &mut impl rand::Rng) -> serde_json::Value {
+    pub(crate) fn generate(&self, rng: &mut StableRng) -> serde_json::Value {
         let mut result = serde_json::Map::new();
         for (key, generator) in &self.fields {
-            result.insert(key.as_ref().to_string(), generator.generate(rng));
+            result.insert(key.as_ref().to_string(), generator.generate_with_rng(rng));
         }
         serde_json::Value::Object(result)
     }

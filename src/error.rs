@@ -38,6 +38,10 @@ impl ApiError {
     pub fn invalid_schema(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, "invalid_schema", message)
     }
+
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", message)
+    }
 }
 
 impl IntoResponse for ApiError {
@@ -77,6 +81,35 @@ pub enum CompileError {
         #[source]
         source: Box<CompileError>,
     },
+}
+
+#[derive(Debug, Error)]
+pub enum GenerationError {
+    #[error(transparent)]
+    InvalidSchema(#[from] CompileError),
+    #[error("unsupported generator_version {provided:?}; this server supports {supported:?}")]
+    UnsupportedGeneratorVersion {
+        provided: String,
+        supported: &'static str,
+    },
+    #[error(
+        "contract_hash does not match the canonical schema: expected {expected}, got {provided}"
+    )]
+    ContractHashMismatch { expected: String, provided: String },
+    #[error("failed to canonicalize schema: {0}")]
+    Canonicalization(#[source] serde_json::Error),
+}
+
+impl From<GenerationError> for ApiError {
+    fn from(error: GenerationError) -> Self {
+        let message = error.to_string();
+        match error {
+            GenerationError::InvalidSchema(_) => Self::invalid_schema(message),
+            GenerationError::UnsupportedGeneratorVersion { .. }
+            | GenerationError::ContractHashMismatch { .. } => Self::invalid_request(message),
+            GenerationError::Canonicalization(_) => Self::internal(message),
+        }
+    }
 }
 
 impl CompileError {

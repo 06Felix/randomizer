@@ -1,4 +1,4 @@
-use rand::{Rng, RngExt};
+use crate::generation::StableRng;
 
 /// Generates floating-point values within an inclusive range.
 #[derive(Debug)]
@@ -9,8 +9,8 @@ pub struct FloatGenerator {
 }
 
 impl FloatGenerator {
-    pub fn generate(&self, rng: &mut impl Rng) -> serde_json::Value {
-        let value = rng.random_range(self.min..=self.max);
+    pub(crate) fn generate(&self, rng: &mut StableRng) -> serde_json::Value {
+        let value = rng.f32_inclusive(self.min, self.max);
         let rounded = round_to_decimal_places(value, self.precision);
         serde_json::Value::Number(match serde_json::Number::from_f64(rounded) {
             Some(n) => n,

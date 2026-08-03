@@ -1,3 +1,4 @@
+use crate::generation::{GenerationContext, StableRng};
 use crate::generator::composite::list::ListGenerator;
 use crate::generator::composite::object::ObjectGenerator;
 use crate::generator::primitives::enumeration::PrimitiveEnumGenerator;
@@ -20,7 +21,12 @@ pub enum Generator {
 }
 
 impl Generator {
-    pub fn generate(&self, rng: &mut impl rand::Rng) -> serde_json::Value {
+    pub fn generate(&self, context: &GenerationContext) -> serde_json::Value {
+        let mut rng = StableRng::for_event(context.seed, context.sequence);
+        self.generate_with_rng(&mut rng)
+    }
+
+    pub(crate) fn generate_with_rng(&self, rng: &mut StableRng) -> serde_json::Value {
         match self {
             Generator::Int(int_gen) => int_gen.generate(rng),
             Generator::Float(float_gen) => float_gen.generate(rng),
@@ -29,7 +35,7 @@ impl Generator {
             Generator::Object(object_gen) => object_gen.generate(rng),
             Generator::List(list_gen) => list_gen.generate(rng),
             Generator::Boolean(boolean_gen) => boolean_gen.generate(rng),
-            Generator::Uuid(uuid_gen) => uuid_gen.generate(),
+            Generator::Uuid(uuid_gen) => uuid_gen.generate(rng),
         }
     }
 }
@@ -38,19 +44,23 @@ impl Generator {
 mod tests {
     use std::sync::Arc;
 
-    use rand::{SeedableRng, rngs::SmallRng};
     use serde_json::json;
 
     use super::*;
     use crate::generator::{ListGenerator, ObjectGenerator, StringGenerator, StringGeneratorMode};
 
-    fn rng() -> SmallRng {
-        SmallRng::seed_from_u64(42)
+    fn context() -> GenerationContext {
+        GenerationContext {
+            seed: 42,
+            sequence: 0,
+            generator_version: "1".into(),
+            contract_hash: "test".into(),
+        }
     }
 
     #[test]
     fn generates_integer_at_fixed_bound() {
-        let value = Generator::Int(IntGenerator { min: 7, max: 7 }).generate(&mut rng());
+        let value = Generator::Int(IntGenerator { min: 7, max: 7 }).generate(&context());
         assert_eq!(value, json!(7));
     }
 
@@ -61,7 +71,7 @@ mod tests {
             max: 1.234,
             precision: 2,
         })
-        .generate(&mut rng());
+        .generate(&context());
         assert_eq!(value, json!(1.23));
     }
 
@@ -76,7 +86,7 @@ mod tests {
                 charset: vec!['x'],
             },
         })
-        .generate(&mut rng());
+        .generate(&context());
         assert_eq!(value, json!("pre-xxxx-post"));
     }
 
@@ -85,13 +95,12 @@ mod tests {
         let generator = Generator::Enum(PrimitiveEnumGenerator {
             values: vec![json!("a"), json!("b")],
         });
-        let value = generator.generate(&mut rng());
+        let value = generator.generate(&context());
         assert!([json!("a"), json!("b")].contains(&value));
     }
 
     #[test]
     fn boolean_boundary_probabilities_are_exact() {
-        let mut rng = rng();
         let never = Generator::Boolean(BooleanGenerator {
             true_probability: 0,
         });
@@ -100,8 +109,8 @@ mod tests {
         });
 
         for _ in 0..1_000 {
-            assert_eq!(never.generate(&mut rng), json!(false));
-            assert_eq!(always.generate(&mut rng), json!(true));
+            assert_eq!(never.generate(&context()), json!(false));
+            assert_eq!(always.generate(&context()), json!(true));
         }
     }
 
@@ -111,7 +120,7 @@ mod tests {
             prefix: "pre-".into(),
             suffix: "-post".into(),
         })
-        .generate(&mut rng());
+        .generate(&context());
         let text = value.as_str().unwrap();
         let uuid = text
             .strip_prefix("pre-")
@@ -128,7 +137,7 @@ mod tests {
             max_length: 2,
             item_generator: Box::new(Generator::Int(IntGenerator { min: 3, max: 3 })),
         })
-        .generate(&mut rng());
+        .generate(&context());
         assert_eq!(value, json!([3, 3]));
     }
 
@@ -142,7 +151,7 @@ mod tests {
                 }),
             )],
         })
-        .generate(&mut rng());
+        .generate(&context());
         assert_eq!(value, json!({"enabled": true}));
     }
 }

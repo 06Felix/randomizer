@@ -7,6 +7,8 @@ Randomizer is a schema-driven Rust service for generating structured JSON payloa
 - Generate a single random JSON payload with a REST API.
 - Stream random JSON payloads continuously over WebSockets.
 - Supports int, float, string, enum, boolean, uuid, object, and list generation.
+- Import, validate, and generate from JSON Schema Draft 2020-12 contracts.
+- Generate valid, minimum, maximum, boundary, invalid, or example payloads reproducibly.
 
 ## Use Cases
 
@@ -69,6 +71,9 @@ curl -X POST http://localhost:7263/generate \
 Every result contains the generated value plus replay metadata. Omit `seed` to generate one,
 then reuse the returned `seed`, `sequence`, and `generator_version` with the same schema to
 reproduce the value exactly.
+
+Standard contracts use a `contract` envelope instead of `schema`; see [CONFIG.md](CONFIG.md) for
+the JSON Schema format, validation endpoint, generation modes, and supported keywords.
 
 ### WebSocket API
 

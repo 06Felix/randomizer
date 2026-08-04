@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::generation::GenerationOptions;
+use crate::generation::{GenerationMode, GenerationOptions};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -56,10 +56,20 @@ pub enum Schema {
     },
 }
 
-/// WebSocket request containing a schema and frequency.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JsonSchemaContract {
+    pub name: String,
+    pub version: String,
+    pub source: String,
+    pub schema: serde_json::Value,
+    pub content_hash: Option<String>,
+}
+
+/// WebSocket request containing a custom schema and frequency.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct WsRequest {
+pub struct CustomWsRequest {
     pub schema: Schema,
     pub frequency: u64,
     pub seed: Option<u64>,
@@ -68,7 +78,7 @@ pub struct WsRequest {
     pub contract_hash: Option<String>,
 }
 
-impl WsRequest {
+impl CustomWsRequest {
     pub fn generation_options(&self) -> GenerationOptions {
         GenerationOptions {
             seed: self.seed,
@@ -77,6 +87,37 @@ impl WsRequest {
             contract_hash: self.contract_hash.clone(),
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StandardWsRequest {
+    pub contract: JsonSchemaContract,
+    pub frequency: u64,
+    #[serde(default)]
+    pub mode: GenerationMode,
+    pub seed: Option<u64>,
+    pub sequence: Option<u64>,
+    pub generator_version: Option<String>,
+    pub contract_hash: Option<String>,
+}
+
+impl StandardWsRequest {
+    pub fn generation_options(&self) -> GenerationOptions {
+        GenerationOptions {
+            seed: self.seed,
+            sequence: self.sequence,
+            generator_version: self.generator_version.clone(),
+            contract_hash: self.contract_hash.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum WsRequest {
+    Standard(StandardWsRequest),
+    Custom(CustomWsRequest),
 }
 
 /// REST request envelope for deterministic generation and replay.
@@ -90,18 +131,50 @@ pub struct GenerateRequest {
     pub contract_hash: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StandardGenerateRequest {
+    pub contract: JsonSchemaContract,
+    #[serde(default)]
+    pub mode: GenerationMode,
+    pub seed: Option<u64>,
+    pub sequence: Option<u64>,
+    pub generator_version: Option<String>,
+    pub contract_hash: Option<String>,
+}
+
+impl StandardGenerateRequest {
+    pub fn generation_options(&self) -> GenerationOptions {
+        GenerationOptions {
+            seed: self.seed,
+            sequence: self.sequence,
+            generator_version: self.generator_version.clone(),
+            contract_hash: self.contract_hash.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ValidateContractRequest {
+    pub contract: JsonSchemaContract,
+    pub value: serde_json::Value,
+}
+
 /// Accepts the deterministic envelope and the original raw-schema request for compatibility.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum RestGenerateRequest {
+    Standard(StandardGenerateRequest),
     Envelope(GenerateRequest),
     Schema(Schema),
 }
 
 impl RestGenerateRequest {
-    pub fn into_parts(self) -> (Schema, GenerationOptions) {
+    pub fn into_custom_parts(self) -> Option<(Schema, GenerationOptions)> {
         match self {
-            Self::Envelope(request) => (
+            Self::Standard(_) => None,
+            Self::Envelope(request) => Some((
                 request.schema,
                 GenerationOptions {
                     seed: request.seed,
@@ -109,8 +182,8 @@ impl RestGenerateRequest {
                     generator_version: request.generator_version,
                     contract_hash: request.contract_hash,
                 },
-            ),
-            Self::Schema(schema) => (schema, GenerationOptions::default()),
+            )),
+            Self::Schema(schema) => Some((schema, GenerationOptions::default())),
         }
     }
 }

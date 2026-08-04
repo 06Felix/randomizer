@@ -13,6 +13,101 @@ This document describes the configuration that exists in Randomizer today.
 
 Invalid configuration prevents startup and reports the offending setting.
 
+## Standard JSON Schema Contracts
+
+Randomizer supports the requested generation subset of JSON Schema Draft 2020-12 while preserving
+the original custom schema. Submit a standard contract to `POST /generate`:
+
+```json
+{
+  "contract": {
+    "name": "customer-created",
+    "version": "1.2.0",
+    "source": "contracts/customer-created.json",
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "id": { "type": "string", "format": "uuid" }
+      },
+      "type": "object",
+      "required": ["id", "email"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "email": { "type": "string", "format": "email" },
+        "nickname": { "type": ["string", "null"], "pattern": "^[A-Za-z]{2,12}$" }
+      }
+    }
+  },
+  "mode": "valid",
+  "seed": 12345,
+  "sequence": 0
+}
+```
+
+Contract metadata fields `name`, `version`, and `source` are required and non-empty. Randomizer
+canonicalizes the schema, returns its SHA-256 `content_hash`, and accepts an optional input
+`content_hash` assertion. The normal top-level `contract_hash` replay assertion is also supported.
+
+Supported generation behavior includes:
+
+- required and optional object properties
+- nullable `type` arrays such as `["string", "null"]`
+- local JSON Pointer `$ref` values and `$defs`
+- `oneOf`, `anyOf`, `const`, and `enum`
+- string `pattern`, `minLength`, and `maxLength`
+- number/integer bounds and `multipleOf`
+- arrays with `items`, `minItems`, and `maxItems`
+- `date`, `date-time`, `email`, `uri`, `uri-reference`, and `uuid` formats
+- root or property `examples` and the legacy `example` annotation
+
+External HTTP and file references are rejected to keep contracts self-contained and replayable.
+Cyclic references and patterns unsupported by the deterministic regex generator return explicit
+contract errors. Generated strings and arrays are capped at `100` elements for resource safety.
+
+### Generation modes
+
+| Mode | Behavior |
+| --- | --- |
+| `valid` | Deterministic valid data within the contract |
+| `minimum` | Minimum values and required properties only |
+| `maximum` | Maximum bounded values and all declared optional properties |
+| `boundary` | Deterministically selects valid lower or upper boundaries |
+| `invalid` | Intentionally violates the contract and returns the validator's exact rule |
+| `example` | Uses the first `examples`/`example` value, falling back to valid generation |
+
+An invalid result includes:
+
+```json
+{
+  "violated_rule": {
+    "keyword": "required",
+    "schema_path": "/required",
+    "instance_path": "",
+    "message": "..."
+  }
+}
+```
+
+### Contract validation
+
+`POST /validate` validates any value using Draft 2020-12 with format assertions enabled:
+
+```json
+{
+  "contract": {
+    "name": "customer-created",
+    "version": "1.2.0",
+    "source": "inline",
+    "schema": { "type": "string", "format": "email" }
+  },
+  "value": "not-an-email"
+}
+```
+
+The response contains `valid`, canonical contract metadata, and every violation with its keyword,
+schema JSON Pointer, instance JSON Pointer, and validator message. WebSocket `/stream` accepts the
+same `contract`, `mode`, and deterministic replay fields alongside `frequency`.
+
 ## Deterministic Generation and Replay
 
 Randomizer derives each event independently from `seed + sequence`. Every response returns:

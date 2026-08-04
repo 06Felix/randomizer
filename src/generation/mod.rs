@@ -6,10 +6,10 @@ use crate::{
     compiler::compile_schema, error::GenerationError, generator::Generator, schema::Schema,
 };
 
-pub use canonical::{canonical_schema_json, contract_hash};
+pub use canonical::{canonical_json, canonical_schema_json, content_hash, contract_hash};
 pub use context::{
-    GENERATOR_VERSION, GenerationContext, GenerationMetadata, GenerationOptions, GenerationResult,
-    generate_seed,
+    ContractMetadata, GENERATOR_VERSION, GenerationContext, GenerationMetadata, GenerationMode,
+    GenerationOptions, GenerationResult, ViolatedRule, generate_seed,
 };
 pub(crate) use stable_rng::StableRng;
 
@@ -64,6 +64,9 @@ impl GenerationPlan {
         GenerationResult {
             value,
             metadata: context,
+            mode: GenerationMode::Valid,
+            contract: None,
+            violated_rule: None,
         }
     }
 

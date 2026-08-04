@@ -98,6 +98,30 @@ pub enum GenerationError {
     ContractHashMismatch { expected: String, provided: String },
     #[error("failed to canonicalize schema: {0}")]
     Canonicalization(#[source] serde_json::Error),
+    #[error(transparent)]
+    StandardContract(#[from] StandardContractError),
+}
+
+#[derive(Debug, Error)]
+pub enum StandardContractError {
+    #[error("contract {field} must not be empty")]
+    EmptyMetadata { field: &'static str },
+    #[error("invalid JSON Schema Draft 2020-12 contract: {0}")]
+    InvalidSchema(String),
+    #[error("unsupported JSON Schema dialect {dialect:?}; expected Draft 2020-12")]
+    UnsupportedDialect { dialect: String },
+    #[error("external reference {reference:?} is not supported; use a local # JSON Pointer")]
+    ExternalReference { reference: String },
+    #[error("unresolved local reference {reference:?}")]
+    UnresolvedReference { reference: String },
+    #[error("cyclic reference {reference:?} cannot be generated")]
+    CyclicReference { reference: String },
+    #[error("unsupported generation at {schema_path}: {reason}")]
+    UnsupportedGeneration { schema_path: String, reason: String },
+    #[error("generated value failed contract validation: {0}")]
+    GeneratedValueInvalid(String),
+    #[error("invalid mode could not produce a contract violation")]
+    UnableToProduceInvalidValue,
 }
 
 impl From<GenerationError> for ApiError {
@@ -108,6 +132,11 @@ impl From<GenerationError> for ApiError {
             GenerationError::UnsupportedGeneratorVersion { .. }
             | GenerationError::ContractHashMismatch { .. } => Self::invalid_request(message),
             GenerationError::Canonicalization(_) => Self::internal(message),
+            GenerationError::StandardContract(StandardContractError::GeneratedValueInvalid(_))
+            | GenerationError::StandardContract(
+                StandardContractError::UnableToProduceInvalidValue,
+            ) => Self::internal(message),
+            GenerationError::StandardContract(_) => Self::invalid_request(message),
         }
     }
 }

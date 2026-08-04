@@ -6,12 +6,25 @@ use crate::{error::GenerationError, schema::Schema};
 /// Returns canonical JSON with recursively sorted object keys and no insignificant whitespace.
 pub fn canonical_schema_json(schema: &Schema) -> Result<String, GenerationError> {
     let value = serde_json::to_value(schema).map_err(GenerationError::Canonicalization)?;
-    serde_json::to_string(&canonicalize(value)).map_err(GenerationError::Canonicalization)
+    canonical_json(&value)
 }
 
 pub fn contract_hash(schema: &Schema) -> Result<String, GenerationError> {
     let digest = Sha256::digest(canonical_schema_json(schema)?.as_bytes());
-    Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+    Ok(hex_digest(&digest))
+}
+
+pub fn canonical_json(value: &Value) -> Result<String, GenerationError> {
+    serde_json::to_string(&canonicalize(value.clone())).map_err(GenerationError::Canonicalization)
+}
+
+pub fn content_hash(value: &Value) -> Result<String, GenerationError> {
+    let digest = Sha256::digest(canonical_json(value)?.as_bytes());
+    Ok(hex_digest(&digest))
+}
+
+fn hex_digest(digest: &[u8]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn canonicalize(value: Value) -> Value {

@@ -6,6 +6,7 @@ pub mod generation;
 pub mod generator;
 pub mod schema;
 pub mod server;
+pub mod standard;
 pub mod state;
 
 pub use config::Config;

@@ -8,7 +8,8 @@ use futures_util::{SinkExt, StreamExt};
 use randomizer::{
     build_router,
     error::ErrorResponse,
-    generation::{GENERATOR_VERSION, GenerationResult},
+    generation::{GENERATOR_VERSION, GenerationMode, GenerationResult},
+    standard::ValidationReport,
 };
 use serde_json::{Value, json};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -110,6 +111,51 @@ async fn rest_replays_exactly_from_returned_metadata() {
 }
 
 #[tokio::test]
+async fn rest_generates_and_validates_standard_contracts() {
+    let request = json!({
+        "contract": standard_contract_json(),
+        "mode": "valid",
+        "seed": 2024,
+        "sequence": 3
+    });
+    let response = build_router(4)
+        .oneshot(json_request(request.clone()))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let generated: GenerationResult =
+        serde_json::from_value(response_json(response).await).unwrap();
+    assert_eq!(generated.mode, GenerationMode::Valid);
+    assert_eq!(generated.contract.as_ref().unwrap().name, "api-event");
+
+    let validation = build_router(4)
+        .oneshot(json_request_at(
+            "/validate",
+            json!({
+                "contract": standard_contract_json(),
+                "value": generated.value
+            }),
+        ))
+        .await
+        .unwrap();
+    let report: ValidationReport = serde_json::from_value(response_json(validation).await).unwrap();
+    assert!(report.valid);
+
+    let invalid = build_router(4)
+        .oneshot(json_request(json!({
+            "contract": standard_contract_json(),
+            "mode": "invalid",
+            "seed": 2024,
+            "sequence": 3
+        })))
+        .await
+        .unwrap();
+    let invalid: GenerationResult = serde_json::from_value(response_json(invalid).await).unwrap();
+    assert_eq!(invalid.mode, GenerationMode::Invalid);
+    assert!(invalid.violated_rule.is_some());
+}
+
+#[tokio::test]
 async fn websocket_streams_values_and_reports_protocol_errors() {
     let (address, server) = spawn_server().await;
     let (mut socket, _) = connect_async(format!("ws://{address}/stream"))
@@ -170,13 +216,67 @@ async fn websocket_streams_values_and_reports_protocol_errors() {
     server.abort();
 }
 
+#[tokio::test]
+async fn websocket_streams_reproducible_standard_contract_results() {
+    let (address, server) = spawn_server().await;
+    let (mut socket, _) = connect_async(format!("ws://{address}/stream"))
+        .await
+        .unwrap();
+    socket
+        .send(Message::Text(
+            json!({
+                "frequency": 100,
+                "contract": standard_contract_json(),
+                "mode": "maximum",
+                "seed": 81,
+                "sequence": 12
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .unwrap();
+
+    let message = socket.next().await.unwrap().unwrap().into_text().unwrap();
+    let result: GenerationResult = serde_json::from_str(&message).unwrap();
+    assert_eq!(result.metadata.seed, 81);
+    assert_eq!(result.metadata.sequence, 12);
+    assert_eq!(result.mode, GenerationMode::Maximum);
+    assert!(result.contract.is_some());
+
+    server.abort();
+}
+
 fn json_request(body: Value) -> Request<Body> {
+    json_request_at("/generate", body)
+}
+
+fn json_request_at(uri: &str, body: Value) -> Request<Body> {
     Request::builder()
         .method("POST")
-        .uri("/generate")
+        .uri(uri)
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body.to_string()))
         .unwrap()
+}
+
+fn standard_contract_json() -> Value {
+    json!({
+        "name": "api-event",
+        "version": "1.0.0",
+        "source": "inline:test",
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["id", "email"],
+            "properties": {
+                "id": {"type": "string", "format": "uuid"},
+                "email": {"type": "string", "format": "email"},
+                "note": {"type": "string", "minLength": 2, "maxLength": 5}
+            },
+            "additionalProperties": false
+        }
+    })
 }
 
 async fn response_json(response: axum::response::Response) -> Value {

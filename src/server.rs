@@ -9,13 +9,14 @@ use tracing::info;
 
 use crate::{
     Config,
-    api::{generate, stream},
+    api::{generate, stream, validate_contract},
     state::AppState,
 };
 
 pub fn build_router(max_concurrent_ws_streams: usize) -> Router {
     Router::new()
         .route("/generate", post(generate))
+        .route("/validate", post(validate_contract))
         .route("/stream", get(stream))
         .with_state(AppState::new(max_concurrent_ws_streams))
 }

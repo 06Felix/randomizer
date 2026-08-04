@@ -13,14 +13,29 @@ use tracing::{debug, warn};
 
 use crate::{
     error::{ErrorResponse, GenerationError},
-    generation::GenerationPlan,
+    generation::{GenerationPlan, GenerationResult},
     schema::model::WsRequest,
+    standard::StandardGenerationPlan,
     state::AppState,
 };
 
 /// Frequency interval in milliseconds between WebSocket payloads (`request.frequency`).
 const MIN_FREQUENCY_MS: u64 = 100;
 const MAX_FREQUENCY_MS: u64 = 10000;
+
+enum StreamingPlan {
+    Custom(GenerationPlan),
+    Standard(StandardGenerationPlan),
+}
+
+impl StreamingPlan {
+    fn generate(&self, sequence: u64) -> Result<GenerationResult, GenerationError> {
+        match self {
+            Self::Custom(plan) => Ok(plan.generate(sequence)),
+            Self::Standard(plan) => plan.generate(sequence),
+        }
+    }
+}
 
 /// JSON envelope for protocol errors sent as WebSocket text frames.
 fn ws_error_frame(code: &'static str, message: impl Into<String>) -> Utf8Bytes {
@@ -85,7 +100,10 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
         }
     };
 
-    let frequency = request.frequency;
+    let frequency = match &request {
+        WsRequest::Custom(request) => request.frequency,
+        WsRequest::Standard(request) => request.frequency,
+    };
     if !(MIN_FREQUENCY_MS..=MAX_FREQUENCY_MS).contains(&frequency) {
         let _ = socket
             .send(Message::Text(ws_error_frame(
@@ -98,15 +116,26 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
         return;
     }
 
-    let generation_options = request.generation_options();
-    let mut sequence = generation_options.sequence.unwrap_or(0);
-    let plan = match GenerationPlan::compile(&request.schema, &generation_options) {
+    let (mut sequence, plan_result) = match request {
+        WsRequest::Custom(request) => {
+            let options = request.generation_options();
+            (
+                options.sequence.unwrap_or(0),
+                GenerationPlan::compile(&request.schema, &options).map(StreamingPlan::Custom),
+            )
+        }
+        WsRequest::Standard(request) => {
+            let options = request.generation_options();
+            (
+                options.sequence.unwrap_or(0),
+                StandardGenerationPlan::compile(request.contract, request.mode, &options)
+                    .map(StreamingPlan::Standard),
+            )
+        }
+    };
+    let plan = match plan_result {
         Ok(plan) => {
-            debug!(
-                seed = plan.seed(),
-                contract_hash = plan.contract_hash(),
-                "compiled websocket generation plan"
-            );
+            debug!("compiled websocket generation plan");
             plan
         }
         Err(e) => {
@@ -118,6 +147,7 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
                 }
                 GenerationError::ContractHashMismatch { .. } => "contract_hash_mismatch",
                 GenerationError::Canonicalization(_) => "internal_error",
+                GenerationError::StandardContract(_) => "invalid_contract",
             };
             let _ = socket
                 .send(Message::Text(ws_error_frame(code, e.to_string())))
@@ -132,7 +162,16 @@ async fn handle_socket(mut socket: WebSocket, _permit: OwnedSemaphorePermit) {
     loop {
         tokio::select! {
             _ = ticker.tick() => {
-                let result = plan.generate(sequence);
+                let result = match plan.generate(sequence) {
+                    Ok(result) => result,
+                    Err(error) => {
+                        warn!(%error, "websocket generation failed");
+                        let _ = socket
+                            .send(Message::Text(ws_error_frame("generation_failed", error.to_string())))
+                            .await;
+                        break;
+                    }
+                };
                 debug!(response = %result.value, metadata = ?result.metadata, "sending websocket value");
 
                 json_buf.clear();

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.2.0-rc.1 - 2026-08-10
+
+### Features
+
+- Add repository-local HTTP mocking through an explicit project manifest and managed CLI.
+- Add deterministic route responses, request bindings, response sequences, request history, and
+  management endpoints without source-analysis or container-runtime dependencies.
+- Add Maven-based Java DTO contract import, refresh, and freshness checks with an embedded,
+  Jackson-aware generic type exporter.
+
 ## v1.1.0
 
 ### Features

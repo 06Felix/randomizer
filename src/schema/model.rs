@@ -56,7 +56,7 @@ pub enum Schema {
     },
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct JsonSchemaContract {
     pub name: String,

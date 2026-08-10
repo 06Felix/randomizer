@@ -1,13 +1,24 @@
+param(
+    [string]$Version = "latest"
+)
+
 $ErrorActionPreference = "Stop"
 
 $Repo = "06Felix/randomizer"
 $BinaryName = "randomizer.exe"
-$Version = "latest"
 
-# Detect architecture
-$Arch = if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { throw "Unsupported arch" }
+if (-not [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+    [System.Runtime.InteropServices.OSPlatform]::Windows
+)) {
+    throw "Unsupported operating system. This installer supports Windows x86-64 only."
+}
 
-$Target = "$Arch-pc-windows-gnu"
+$Arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+if ($Arch -ne [System.Runtime.InteropServices.Architecture]::X64) {
+    throw "Unsupported Windows architecture: $Arch. Only Windows x86-64 is supported."
+}
+
+$Target = "x86_64-pc-windows-msvc"
 $Ext = "zip"
 
 # GitHub headers

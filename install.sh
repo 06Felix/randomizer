@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 REPO="06Felix/randomizer"
 BINARY_NAME="randomizer"
@@ -13,30 +13,18 @@ for cmd in curl tar grep; do
 	}
 done
 
-# Detect OS
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
-case "$OS" in
-Linux) TARGET_OS="unknown-linux-gnu" ;;
-Darwin) TARGET_OS="apple-darwin" ;;
+case "$OS:$ARCH" in
+Linux:x86_64) TARGET="x86_64-unknown-linux-gnu" ;;
+Darwin:arm64 | Darwin:aarch64) TARGET="aarch64-apple-darwin" ;;
 *)
-	echo "Unsupported OS: $OS"
+	echo "Unsupported platform: $OS $ARCH" >&2
+	echo "Supported platforms: Linux x86-64 and macOS Apple Silicon" >&2
 	exit 1
 	;;
 esac
-
-# Normalize arch
-case "$ARCH" in
-x86_64) ARCH="x86_64" ;;
-arm64 | aarch64) ARCH="aarch64" ;;
-*)
-	echo "Unsupported architecture: $ARCH"
-	exit 1
-	;;
-esac
-
-TARGET="$ARCH-$TARGET_OS"
 EXT="tar.gz"
 
 # Resolve version
@@ -63,6 +51,7 @@ TMP_DIR="$(mktemp -d)"
 	echo "Failed to create temp dir"
 	exit 1
 }
+trap 'rm -rf "$TMP_DIR"' EXIT
 cd "$TMP_DIR"
 
 curl -fLO "$URL" || {

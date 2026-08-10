@@ -2,6 +2,10 @@
 
 Randomizer is a schema-driven Rust service for generating structured JSON payloads with random values over HTTP and WebSockets.
 
+It can also be initialized inside an application repository as an explicit local HTTP mocking
+gateway. A versioned project manifest maps normal third-party requests to inline, fixture, or
+contract-generated responses and produces local-profile URL overrides.
+
 ## Features
 
 - Generate a single random JSON payload with a REST API.
@@ -9,6 +13,11 @@ Randomizer is a schema-driven Rust service for generating structured JSON payloa
 - Supports int, float, string, enum, boolean, uuid, object, and list generation.
 - Import, validate, and generate from JSON Schema Draft 2020-12 contracts.
 - Generate valid, minimum, maximum, boundary, invalid, or example payloads reproducibly.
+- Mock normal third-party HTTP requests without changing application code.
+- Match requests by service, method, path, query, headers, and JSON body values.
+- Bind request values into deterministic fixture or contract responses.
+- Extract portable response contracts from compiled Java DTOs, including generic wrappers and
+  Jackson property naming.
 
 ## Use Cases
 
@@ -21,7 +30,10 @@ Randomizer is a schema-driven Rust service for generating structured JSON payloa
 
 Use the below commands to install randomizer binary in your system
 
-### Linux / Mac
+Supported release platforms are Linux x86-64, macOS Apple Silicon, and Windows x86-64. Installers
+reject other operating system and architecture combinations.
+
+### Linux x86-64 / macOS Apple Silicon
 
 ```sh
 curl -sSf https://raw.githubusercontent.com/06Felix/randomizer/main/install.sh | bash
@@ -45,6 +57,31 @@ The bind address, port, WebSocket connection limit, and log filter can be config
 environment variables documented in [CONFIG.md](CONFIG.md).
 
 The endpoint for the REST API is `/generate` and for WebSocket is `/stream`. For more details on configuration go to [CONFIG.md](CONFIG.md)
+
+### Project mocking
+
+From a Spring Boot repository:
+
+```sh
+randomizer init
+# Register HTTP services and routes in .randomizer/randomizer.yaml.
+randomizer contract import-java --name task-response \
+  --type 'com.example.ServiceResponse<com.example.TaskDto>'
+randomizer verify
+randomizer dev -- mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+`init` adds one import to the existing local-profile configuration. `up` and `dev` generate the
+selected service URL overrides and start the HTTP gateway. Project mode has no source-analysis,
+message-broker, container-runtime, or agent dependency.
+
+Java DTO extraction supports standard single-module Maven projects in Phase 1. It uses the
+project's Maven wrapper when present, otherwise `mvn`, and requires JDK 17 or newer. The exporter
+is embedded in the Randomizer executable; users do not install a separate exporter or clone this
+repository.
+
+See [Project Mocking](PROJECT_MOCKING.md) for the technical flow, full manifest format, route
+matching and response binding, generated files, and lifecycle commands.
 
 ## Usage
 

@@ -152,15 +152,20 @@ jobs:
         with:
           path: artifacts
 
-      - name: Generate changelog (git-cliff)
-        id: changelog
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --latest --strip header
-        env:
-          OUTPUT: CHANGELOG.md
-          GITHUB_REPO: ${{ github.repository }}
+      - name: Extract release notes from changelog
+        shell: bash
+        run: |
+          awk -v tag="${GITHUB_REF_NAME}" '
+            $0 ~ ("^## " tag "([[:space:]]|$)") { found = 1; capture = 1; next }
+            capture && /^## / { exit }
+            capture { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > release-notes.md
+
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "No release notes found for ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -169,7 +174,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body: ${{ steps.changelog.outputs.content }}
+          body_path: release-notes.md
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.zip

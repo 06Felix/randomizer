@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.2.0-rc.1 - 2026-08-10
+## v1.2.0-rc.2 - 2026-08-10
 
 ### Features
 
@@ -9,6 +9,10 @@
   management endpoints without source-analysis or container-runtime dependencies.
 - Add Maven-based Java DTO contract import, refresh, and freshness checks with an embedded,
   Jackson-aware generic type exporter.
+
+### Fixes
+
+- Keep the release lint gate compatible with current stable Clippy.
 
 ## v1.1.0
 

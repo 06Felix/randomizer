@@ -81,7 +81,7 @@ pub fn compile_schema(schema: &Schema) -> Result<Generator, CompileError> {
         Schema::Enum { values } => compile_primitive_enum_schema(values),
         Schema::Object { properties } => {
             let mut entries: Vec<_> = properties.iter().collect();
-            entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+            entries.sort_by_key(|(key, _)| *key);
 
             let mut fields = Vec::with_capacity(properties.len());
             for (key, value) in entries {

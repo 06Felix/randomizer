@@ -13,20 +13,52 @@ use super::{
 
 const LOCK_FORMAT_VERSION: u32 = 1;
 const SKILL_NAME: &str = "randomizer-mocks";
-const SKILL_VERSION: u32 = 2;
+const SKILL_VERSION: u32 = 4;
 const LOCK_PATH: &str = ".randomizer/skills.lock.json";
 const SKILL_PATH: &str = ".agents/skills/randomizer-mocks/SKILL.md";
 const METADATA_PATH: &str = ".agents/skills/randomizer-mocks/agents/openai.yaml";
 const CONTRACT_REFERENCE_PATH: &str = ".agents/skills/randomizer-mocks/references/contracts.md";
+const RUNTIME_REFERENCE_PATH: &str =
+    ".agents/skills/randomizer-mocks/references/runtime-capabilities.md";
+const GENERIC_REFERENCE_PATH: &str =
+    ".agents/skills/randomizer-mocks/references/generic-wire-contract.md";
+const JAVA_REFERENCE_PATH: &str = ".agents/skills/randomizer-mocks/references/languages/java.md";
+const TYPESCRIPT_REFERENCE_PATH: &str =
+    ".agents/skills/randomizer-mocks/references/languages/typescript.md";
+const PYTHON_REFERENCE_PATH: &str =
+    ".agents/skills/randomizer-mocks/references/languages/python.md";
+const GO_REFERENCE_PATH: &str = ".agents/skills/randomizer-mocks/references/languages/go.md";
+const RUST_REFERENCE_PATH: &str = ".agents/skills/randomizer-mocks/references/languages/rust.md";
 const SKILL_CONTENTS: &str = include_str!("../../assets/randomizer-mocks/SKILL.md");
 const METADATA_CONTENTS: &str = include_str!("../../assets/randomizer-mocks/agents/openai.yaml");
 const CONTRACT_REFERENCE_CONTENTS: &str =
     include_str!("../../assets/randomizer-mocks/references/contracts.md");
+const RUNTIME_REFERENCE_CONTENTS: &str =
+    include_str!("../../assets/randomizer-mocks/references/runtime-capabilities.md");
+const GENERIC_REFERENCE_CONTENTS: &str =
+    include_str!("../../assets/randomizer-mocks/references/generic-wire-contract.md");
+const JAVA_REFERENCE_CONTENTS: &str =
+    include_str!("../../assets/randomizer-mocks/references/languages/java.md");
+const TYPESCRIPT_REFERENCE_CONTENTS: &str =
+    include_str!("../../assets/randomizer-mocks/references/languages/typescript.md");
+const PYTHON_REFERENCE_CONTENTS: &str =
+    include_str!("../../assets/randomizer-mocks/references/languages/python.md");
+const GO_REFERENCE_CONTENTS: &str =
+    include_str!("../../assets/randomizer-mocks/references/languages/go.md");
+const RUST_REFERENCE_CONTENTS: &str =
+    include_str!("../../assets/randomizer-mocks/references/languages/rust.md");
 
-const FILES: [(&str, &str); 3] = [
+const FILES: [(&str, &str); 10] = [
     (SKILL_PATH, SKILL_CONTENTS),
     (METADATA_PATH, METADATA_CONTENTS),
     (CONTRACT_REFERENCE_PATH, CONTRACT_REFERENCE_CONTENTS),
+    (RUNTIME_REFERENCE_PATH, RUNTIME_REFERENCE_CONTENTS),
+    (GENERIC_REFERENCE_PATH, GENERIC_REFERENCE_CONTENTS),
+    (JAVA_REFERENCE_PATH, JAVA_REFERENCE_CONTENTS),
+    (TYPESCRIPT_REFERENCE_PATH, TYPESCRIPT_REFERENCE_CONTENTS),
+    (PYTHON_REFERENCE_PATH, PYTHON_REFERENCE_CONTENTS),
+    (GO_REFERENCE_PATH, GO_REFERENCE_CONTENTS),
+    (RUST_REFERENCE_PATH, RUST_REFERENCE_CONTENTS),
 ];
 
 #[derive(Debug, Error)]

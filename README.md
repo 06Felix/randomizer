@@ -16,8 +16,8 @@ contract-generated responses while the repository keeps control of its local app
 - Mock normal third-party HTTP requests without changing application code.
 - Match requests by service, method, path, query, headers, and JSON body values.
 - Bind request values into deterministic fixture or contract responses.
-- Install a reusable repository skill that can add or update mocks from source, tests, fixtures,
-  types, and existing API specifications.
+- Install a reusable language-aware repository skill that can add or update mocks from serialized
+  source behavior, tests, fixtures, types, and existing API specifications, with a generic fallback.
 
 ## Use Cases
 

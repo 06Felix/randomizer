@@ -95,12 +95,15 @@ mod tests {
         assert!(manifest.routes.is_empty());
         assert!(paths.contracts.is_dir());
         assert!(paths.fixtures.is_dir());
-        assert!(
+        let installed_skill = std::fs::read_to_string(
             directory
                 .path()
-                .join(".agents/skills/randomizer-mocks/SKILL.md")
-                .is_file()
-        );
+                .join(".agents/skills/randomizer-mocks/SKILL.md"),
+        )
+        .unwrap();
+        assert!(installed_skill.contains("language=java"));
+        assert!(installed_skill.contains("generic-wire-contract.md"));
+        assert!(installed_skill.contains("completion_time_in_minutes"));
         assert!(
             directory
                 .path()
@@ -110,9 +113,35 @@ mod tests {
         assert!(
             directory
                 .path()
+                .join(".agents/skills/randomizer-mocks/references/runtime-capabilities.md")
+                .is_file()
+        );
+        assert!(
+            directory
+                .path()
+                .join(".agents/skills/randomizer-mocks/references/languages/java.md")
+                .is_file()
+        );
+        let java_reference = std::fs::read_to_string(
+            directory
+                .path()
+                .join(".agents/skills/randomizer-mocks/references/languages/java.md"),
+        )
+        .unwrap();
+        assert!(java_reference.contains("OffsetDateTime"));
+        assert!(java_reference.contains("@JsonValue"));
+        assert!(
+            directory
+                .path()
                 .join(".randomizer/skills.lock.json")
                 .is_file()
         );
+        let skill_lock: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(directory.path().join(".randomizer/skills.lock.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(skill_lock["skill_version"], 4);
+        assert_eq!(skill_lock["files"].as_object().unwrap().len(), 10);
         assert_eq!(
             std::fs::read_to_string(paths.randomizer_dir.join(".gitignore")).unwrap(),
             "runtime/\n"

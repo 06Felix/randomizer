@@ -98,11 +98,25 @@ fn force_recovers_an_invalid_lock_before_project_initialization() {
             .join(".agents/skills/randomizer-mocks/SKILL.md")
             .is_file()
     );
-    assert!(
-        directory
-            .path()
-            .join(".agents/skills/randomizer-mocks/references/contracts.md")
-            .is_file()
-    );
+    for reference in [
+        "contracts.md",
+        "runtime-capabilities.md",
+        "generic-wire-contract.md",
+        "languages/java.md",
+        "languages/typescript.md",
+        "languages/python.md",
+        "languages/go.md",
+        "languages/rust.md",
+    ] {
+        assert!(
+            directory
+                .path()
+                .join(format!(
+                    ".agents/skills/randomizer-mocks/references/{reference}"
+                ))
+                .is_file(),
+            "missing bundled reference {reference}"
+        );
+    }
     assert!(serde_json::from_slice::<serde_json::Value>(&fs::read(lock).unwrap()).is_ok());
 }

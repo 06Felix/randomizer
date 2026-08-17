@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Expand the bundled `$randomizer-mocks` skill with language-aware playbooks for Java/JVM,
+  TypeScript/JavaScript, Python, Go, and Rust, plus a generic wire-contract fallback.
+- Add explicit runtime capability guidance and Java serialization rules for enums, Jackson behavior,
+  null/omission semantics, and date/time types such as `LocalDate`, `Instant`, and `OffsetDateTime`.
+- Require contract generation choices to stay within Randomizer's supported formats, using fixtures or
+  developer clarification for unsupported wire shapes.
+- Teach the skill to create standalone Randomizer generation request payloads from explicit variable
+  semantics and bounds, such as `completion_time_in_minutes` with an integer range.
+
 ## v1.2.0-rc.3 - 2026-08-17
 
 ### Breaking Changes

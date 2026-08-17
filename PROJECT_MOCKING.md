@@ -24,17 +24,28 @@ It also creates:
 
 .agents/skills/randomizer-mocks/
 ├── SKILL.md
-└── agents/openai.yaml
+├── agents/openai.yaml
+└── references/
+    ├── contracts.md
+    ├── runtime-capabilities.md
+    ├── generic-wire-contract.md
+    └── languages/
+        ├── java.md
+        ├── typescript.md
+        ├── python.md
+        ├── go.md
+        └── rust.md
 ```
 
 Commit the manifest, fixtures, any contracts, the managed skill, `.randomizer/skills.lock.json`, and
 the application's local configuration. Do not commit `.randomizer/runtime/`.
 
 Invoke `$randomizer-mocks` whenever one or more endpoints need to be added or updated. The skill
-inspects only the requested outbound HTTP clients, response consumers, tests, fixtures, serialized
-types, service specifications, enums, booleans, and local configuration before reconciling routes
-and response contracts. No manual schema-import command is required. You can also edit the files
-directly.
+detects the owning language and framework, loads a focused serialization playbook, and inspects only
+the requested outbound HTTP clients, response consumers, tests, fixtures, serialized types, service
+specifications, enums, booleans, date/time values, and local configuration before reconciling routes
+and response contracts. It falls back to a language-neutral wire-contract workflow when no playbook
+applies. No manual schema-import command is required. You can also edit the files directly.
 
 After installing a newer Randomizer binary, update the repository copy of the skill:
 

@@ -1,18 +1,15 @@
 use std::path::Path;
 
-use crate::{
-    adapter::SpringBootAdapter,
-    project::{CURRENT_MANIFEST_VERSION, ProjectDefinition, ProjectManifest, ProjectPaths},
-};
+use crate::project::{CURRENT_MANIFEST_VERSION, ProjectDefinition, ProjectManifest, ProjectPaths};
 
-use super::{CliError, args::InitArgs};
+use super::{CliError, args::InitArgs, skill};
 
 pub fn init(args: InitArgs) -> Result<(), CliError> {
     let paths = ProjectPaths::for_init(&args.path)?;
     if paths.manifest.exists() {
         return Err(CliError::AlreadyInitialized(paths.manifest));
     }
-    let manifest = empty_manifest(&paths.root, &args.adapter);
+    let manifest = empty_manifest(&paths.root);
 
     std::fs::create_dir_all(&paths.contracts).map_err(|source| CliError::Write {
         path: paths.contracts.clone(),
@@ -27,21 +24,21 @@ pub fn init(args: InitArgs) -> Result<(), CliError> {
         source,
     })?;
 
-    if args.adapter == "spring-boot" && !args.no_apply {
-        SpringBootAdapter::ensure_import(&paths)?;
-    }
-    write_yaml(&paths.manifest, &manifest)?;
+    let skill_outcome = skill::sync_at_root(&paths.root, false)?;
     write_ignore_file(&paths)?;
+    // Write the manifest last because its presence marks initialization as complete.
+    write_yaml(&paths.manifest, &manifest)?;
 
     println!("initialized {}", paths.randomizer_dir.display());
+    println!("{}", skill_outcome.message());
     println!(
-        "review {} and add route response contracts before starting the harness",
+        "review {} and add services and routes before starting Randomizer",
         paths.manifest.display()
     );
     Ok(())
 }
 
-fn empty_manifest(root: &Path, adapter: &str) -> ProjectManifest {
+fn empty_manifest(root: &Path) -> ProjectManifest {
     ProjectManifest {
         version: CURRENT_MANIFEST_VERSION,
         project: ProjectDefinition {
@@ -53,7 +50,7 @@ fn empty_manifest(root: &Path, adapter: &str) -> ProjectManifest {
             seed: 0,
             host: "127.0.0.1".into(),
             port: 7263,
-            adapter: Some(adapter.to_string()),
+            adapter: None,
         },
         services: Vec::new(),
         routes: Vec::new(),
@@ -83,18 +80,39 @@ mod tests {
 
         init(InitArgs {
             path: directory.path().to_path_buf(),
-            adapter: "spring-boot".into(),
-            no_apply: true,
         })
         .unwrap();
 
         let paths = ProjectPaths::discover(Some(directory.path())).unwrap();
         let manifest = paths.load_manifest().unwrap();
-        assert_eq!(manifest.project.adapter.as_deref(), Some("spring-boot"));
+        assert_eq!(manifest.project.adapter, None);
+        assert!(
+            !std::fs::read_to_string(&paths.manifest)
+                .unwrap()
+                .contains("adapter:")
+        );
         assert!(manifest.services.is_empty());
         assert!(manifest.routes.is_empty());
         assert!(paths.contracts.is_dir());
         assert!(paths.fixtures.is_dir());
+        assert!(
+            directory
+                .path()
+                .join(".agents/skills/randomizer-mocks/SKILL.md")
+                .is_file()
+        );
+        assert!(
+            directory
+                .path()
+                .join(".agents/skills/randomizer-mocks/references/contracts.md")
+                .is_file()
+        );
+        assert!(
+            directory
+                .path()
+                .join(".randomizer/skills.lock.json")
+                .is_file()
+        );
         assert_eq!(
             std::fs::read_to_string(paths.randomizer_dir.join(".gitignore")).unwrap(),
             "runtime/\n"

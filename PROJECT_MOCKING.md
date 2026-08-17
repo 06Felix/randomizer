@@ -1,7 +1,8 @@
 # Project HTTP Mocking
 
-Randomizer project mode redirects selected application HTTP clients to a repository-local mock
-gateway. It has no source-code discovery, message-broker, container-runtime, or agent dependency.
+Randomizer project mode serves repository-local HTTP mocks for any application language or
+framework. Runtime behavior has no source-analysis, message-broker, container-runtime, Java, or
+agent dependency.
 
 ## Setup
 
@@ -11,15 +12,6 @@ Run this once from the application repository:
 randomizer init
 ```
 
-For Spring Boot, initialization adds one import to `application-local.yaml`,
-`application-local.yml`, or `application-local.properties`:
-
-```yaml
-spring:
-  config:
-    import: optional:file:.randomizer/runtime/application-randomizer.yaml
-```
-
 It also creates:
 
 ```text
@@ -27,11 +19,31 @@ It also creates:
 ├── randomizer.yaml
 ├── contracts/
 ├── fixtures/
+├── skills.lock.json
 └── runtime/                 # generated and gitignored
+
+.agents/skills/randomizer-mocks/
+├── SKILL.md
+└── agents/openai.yaml
 ```
 
-Commit the manifest, contracts, fixtures, and local-profile import. Do not commit
-`.randomizer/runtime/`.
+Commit the manifest, fixtures, any contracts, the managed skill, `.randomizer/skills.lock.json`, and
+the application's local configuration. Do not commit `.randomizer/runtime/`.
+
+Invoke `$randomizer-mocks` whenever one or more endpoints need to be added or updated. The skill
+inspects only the requested outbound HTTP clients, response consumers, tests, fixtures, serialized
+types, service specifications, enums, booleans, and local configuration before reconciling routes
+and response contracts. No manual schema-import command is required. You can also edit the files
+directly.
+
+After installing a newer Randomizer binary, update the repository copy of the skill:
+
+```sh
+randomizer skill sync
+```
+
+Randomizer records the hashes and bundled version of managed files. Synchronization preserves local
+edits and asks for an explicit `--force` before replacing them.
 
 ## Request flow
 
@@ -58,11 +70,10 @@ project:
   seed: 42
   host: 127.0.0.1
   port: 7263
-  adapter: spring-boot
 
 services:
   - id: service-os
-    config_key: url.serviceOSBaseUrl
+    config_key: SERVICE_OS_URL
 
 routes:
   - id: get-service-os-task
@@ -79,8 +90,10 @@ routes:
         headers:
           x-mock-source: randomizer
         body:
-          contract: .randomizer/contracts/task-response.json
-          mode: valid
+          inline:
+            data:
+              reference_id: placeholder
+              state: IN_PROGRESS
         bindings:
           - target: /data/reference_id
             source: ${request.path.task_id}
@@ -90,8 +103,9 @@ routes:
             code: temporarily_unavailable
 ```
 
-Each service `config_key` is written to the generated Spring overlay. A service without a
-`config_key` remains available for route validation but does not modify application configuration.
+`config_key` records the local application setting used for the service. Randomizer does not modify
+or interpret it at runtime; the `$randomizer-mocks` skill updates the repository's existing local
+configuration convention. A service without a `config_key` is valid.
 
 Route paths support literal segments, `{name}` parameters, and `*` wildcard segments. Matchers may
 also require exact query values, case-insensitive header names with exact values, and request-body
@@ -101,7 +115,7 @@ Responses may contain one of:
 
 - `inline`: JSON embedded in the manifest;
 - `fixture`: a JSON file relative to the project root;
-- `contract`: a JSON Schema used for deterministic generation.
+- `contract`: a bare Draft 2020-12 JSON Schema used for deterministic generation.
 
 Multiple responses advance in order and then hold the final response. `randomizer reset` returns
 every route to its first response and clears request history.
@@ -115,6 +129,30 @@ Bindings replace an existing response JSON Pointer using:
 
 Contract responses are validated again after bindings are applied.
 
+### Generated response contracts
+
+The skill writes bare schemas under `.randomizer/contracts/`; Randomizer derives contract metadata
+and the canonical content hash during verification and runtime:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["status", "active", "retryable"],
+  "properties": {
+    "status": { "type": "string", "enum": ["QUEUED", "DONE"] },
+    "active": { "type": "boolean" },
+    "retryable": { "const": false },
+    "message": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}
+```
+
+`type: boolean` allows generated `true` and `false` values. Use `const` only when the actual service
+contract fixes the flag. Enum values must be exact serialized wire values, including case. Optional
+properties stay out of `required`; nullable properties explicitly include `null`.
+
 ## Run
 
 Validate configuration first:
@@ -123,16 +161,17 @@ Validate configuration first:
 randomizer verify
 ```
 
-Run only the gateway:
+Start Randomizer in the background:
 
 ```sh
-randomizer up
+randomizer start
 ```
 
-Or supervise the application too:
+Then start the application with its normal command or IDE. To keep Randomizer attached to the
+terminal instead:
 
 ```sh
-randomizer dev -- mvn spring-boot:run -Dspring-boot.run.profiles=local
+randomizer start --foreground
 ```
 
 Other lifecycle commands:
@@ -141,7 +180,7 @@ Other lifecycle commands:
 randomizer inspect
 randomizer status
 randomizer reset
-randomizer down
+randomizer stop
 ```
 
 Management endpoints:
@@ -153,52 +192,21 @@ Management endpoints:
 | `GET /__randomizer/requests` | Recent sanitized request metadata |
 | `POST /__randomizer/reset` | Reset response sequences and request history |
 
-## Java DTO contracts
+## Incremental mock management
 
-Phase 1 can compile a standard single-module Maven application and extract a portable JSON Schema
-from a Java response DTO. Supply the fully-qualified type and every generic argument:
+The skill accepts endpoint scope as methods and paths, service names, source files, features,
+existing route IDs, or endpoint lists. It identifies existing routes by service, method, normalized
+path, and distinguishing matchers so repeated requests do not create duplicates. Unrelated routes,
+responses, fixtures, and local configuration remain unchanged.
 
-```sh
-randomizer contract import-java \
-  --name service-os-task-response \
-  --type 'com.acko.garage.integration.centralService.client.ServiceOS.dto.ServiceOSStdResponse<com.acko.garage.integration.centralService.client.ServiceOS.dto.TaskDetailsDTO>'
-```
+For response evidence, it prefers developer-provided examples, existing fixtures and tests,
+committed OpenAPI or JSON Schema, serialized types and enums, and finally response-consumer
+behavior. It records the evidence for each property's JSON name, type, presence, nullability, enum or
+constant values, and constraints before creating or updating a contract. Inline bodies are reserved
+for intentionally fixed responses; fixtures are used when a supported generated contract cannot
+represent the actual response safely.
 
-The command uses `mvnw`/`mvnw.cmd` when present and otherwise `mvn`. It compiles the application,
-resolves the Maven dependency classpath, loads classes without starting Spring, honors Jackson
-property annotations, validates that Randomizer can generate from the schema, and writes:
-
-```text
-.randomizer/contracts/service-os-task-response.json
-.randomizer/contracts/java.lock.json
-```
-
-The exporter is embedded in the Randomizer executable. A JDK 17+ and Maven are the only additional
-requirements, and they are normally already present for a Maven application.
-
-Use the generated contract in a route response:
-
-```yaml
-body:
-  contract: .randomizer/contracts/service-os-task-response.json
-  mode: valid
-```
-
-All properties are required by default so generated responses contain a useful complete DTO. Use
-`--field-presence annotated` when only fields marked with Jackson
-`@JsonProperty(required = true)` should be mandatory.
-
-Regenerate registered contracts after DTO changes and check freshness in CI:
-
-```sh
-randomizer contract refresh
-randomizer contract check
-```
-
-`check` recompiles the Maven project and compares transitive application DTO bytecode, the emitted
-schema, and the exporter version with the committed lock file. It does not modify contracts.
-
-DTO extraction does not discover HTTP routes. The service, configuration key, method, and path
-remain explicit in `randomizer.yaml`; Java response types do not exist in an HTTP request at
-runtime. Custom serializers and application-specific `ObjectMapper` modules may require an explicit
-fixture or hand-authored schema.
+The skill must not invent business states, error behavior, enum values, secrets, or production
+data. When repository evidence is incomplete, it reports the ambiguity and asks for a developer
+example. This keeps repository understanding outside the runtime while supporting repeated mock
+changes throughout the project lifecycle.

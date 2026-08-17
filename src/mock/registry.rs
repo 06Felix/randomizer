@@ -392,9 +392,15 @@ fn compile_response(
             )
             .map_err(|source| MockCompileError::Contract {
                 route_id: route_id.to_string(),
-                path: path_buf,
+                path: path_buf.clone(),
                 source,
             })?;
+            plan.generate(0)
+                .map_err(|source| MockCompileError::Contract {
+                    route_id: route_id.to_string(),
+                    path: path_buf,
+                    source,
+                })?;
             CompiledBody::Contract {
                 plan: Box::new(plan),
                 contract,

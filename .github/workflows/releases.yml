@@ -23,13 +23,6 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Install Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: maven
-
       - name: Verify tag matches package version
         shell: bash
         run: |
@@ -42,9 +35,6 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt --check
-
-      - name: Test Java DTO exporter
-        run: mvn --batch-mode --file tools/java-dto-exporter/pom.xml test
 
       - name: Lint
         run: cargo clippy --all-targets -- -D warnings
@@ -88,13 +78,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
-      - name: Install Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: maven
 
       # ✅ Native build (NO cross)
       - name: Build

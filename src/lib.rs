@@ -1,9 +1,7 @@
-pub mod adapter;
 pub mod api;
 pub mod cli;
 pub mod compiler;
 pub mod config;
-pub mod dto;
 pub mod error;
 pub mod generation;
 pub mod generator;

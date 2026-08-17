@@ -42,7 +42,8 @@ pub struct ProjectDefinition {
     pub host: String,
     #[serde(default = "default_port")]
     pub port: u16,
-    #[serde(default)]
+    /// Accepted only to provide an actionable migration error for version 1 manifests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<String>,
 }
 

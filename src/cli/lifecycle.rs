@@ -202,12 +202,11 @@ fn server_result(
 pub async fn status(args: ProjectArgs) -> Result<(), CliError> {
     let paths = ProjectPaths::discover(Some(&args.project))?;
     let state_path = state_path(&paths);
-    if !state_path.exists() {
+    let Some(state) = read_state_optional(&state_path)? else {
         println!("Randomizer is stopped");
         return Ok(());
-    }
+    };
 
-    let state = read_state(&state_path)?;
     if gateway_is_ready(&state).await {
         println!(
             "Randomizer is running at http://{}:{} (pid {})",
@@ -225,12 +224,11 @@ pub async fn status(args: ProjectArgs) -> Result<(), CliError> {
 pub async fn stop(args: ProjectArgs) -> Result<(), CliError> {
     let paths = ProjectPaths::discover(Some(&args.project))?;
     let state_path = state_path(&paths);
-    if !state_path.exists() {
+    let Some(state) = read_state_optional(&state_path)? else {
         println!("Randomizer is already stopped");
         return Ok(());
-    }
+    };
 
-    let state = read_state(&state_path)?;
     if !gateway_is_ready(&state).await {
         remove_state(&state_path)?;
         println!("Randomizer is already stopped; removed stale runtime state");
@@ -258,10 +256,9 @@ pub async fn stop(args: ProjectArgs) -> Result<(), CliError> {
 
 async fn remove_stale_state(paths: &ProjectPaths) -> Result<(), CliError> {
     let state_path = state_path(paths);
-    if !state_path.exists() {
+    let Some(state) = read_state_optional(&state_path)? else {
         return Ok(());
-    }
-    let state = read_state(&state_path)?;
+    };
     if gateway_is_ready(&state).await {
         return Err(CliError::AlreadyRunning);
     }
@@ -293,21 +290,36 @@ fn read_state(path: &Path) -> Result<HarnessState, CliError> {
     serde_json::from_slice(&bytes).map_err(Into::into)
 }
 
+fn read_state_optional(path: &Path) -> Result<Option<HarnessState>, CliError> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => {
+            return Err(CliError::Read {
+                path: path.to_path_buf(),
+                source,
+            });
+        }
+    };
+    serde_json::from_slice(&bytes).map(Some).map_err(Into::into)
+}
+
 fn remove_state_if_owned(path: &Path, owner_pid: u32) -> Result<(), CliError> {
-    if path.exists() && read_state(path)?.owner_pid == owner_pid {
+    if read_state_optional(path)?.is_some_and(|state| state.owner_pid == owner_pid) {
         remove_state(path)?;
     }
     Ok(())
 }
 
 fn remove_state(path: &Path) -> Result<(), CliError> {
-    if path.exists() {
-        std::fs::remove_file(path).map_err(|source| CliError::Write {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(source) => Err(CliError::Write {
             path: path.to_path_buf(),
             source,
-        })?;
+        }),
     }
-    Ok(())
 }
 
 async fn gateway_is_ready(state: &HarnessState) -> bool {

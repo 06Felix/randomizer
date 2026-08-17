@@ -19,6 +19,10 @@
 - Run `randomizer start` in the background by default, with readiness checks, logs, status, stale
   state cleanup, idempotent stop behavior, and an opt-in `--foreground` mode.
 
+### Fixes
+
+- Make lifecycle status, stop, and stale-state cleanup tolerate concurrent runtime-state removal.
+
 ## v1.2.0-rc.2 - 2026-08-10
 
 ### Features

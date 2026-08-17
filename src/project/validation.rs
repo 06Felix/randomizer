@@ -57,14 +57,9 @@ pub fn validate_manifest(manifest: &ProjectManifest) -> Result<(), ManifestError
             "project.port must be greater than zero".into(),
         ));
     }
-    if manifest
-        .project
-        .adapter
-        .as_deref()
-        .is_some_and(|adapter| adapter != "spring-boot")
-    {
+    if manifest.project.adapter.is_some() {
         return Err(ManifestError::Invalid(
-            "project.adapter must be spring-boot when configured".into(),
+            "project.adapter is no longer supported; remove it and configure the application's local service URLs to use http://127.0.0.1:<port>/mock/<service-id>".into(),
         ));
     }
     let mut service_ids = HashSet::new();
@@ -254,5 +249,16 @@ mod tests {
         let mut delay = manifest();
         delay.routes[0].responses[0].delay_ms = 60_001;
         assert!(validate_manifest(&delay).is_err());
+    }
+
+    #[test]
+    fn rejects_legacy_application_adapters_with_migration_guidance() {
+        let mut legacy = manifest();
+        legacy.project.adapter = Some("spring-boot".into());
+
+        let error = validate_manifest(&legacy).unwrap_err().to_string();
+
+        assert!(error.contains("project.adapter is no longer supported"));
+        assert!(error.contains("/mock/<service-id>"));
     }
 }

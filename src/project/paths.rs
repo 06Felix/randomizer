@@ -11,7 +11,6 @@ pub struct ProjectPaths {
     pub randomizer_dir: PathBuf,
     pub manifest: PathBuf,
     pub contracts: PathBuf,
-    pub java_contract_lock: PathBuf,
     pub fixtures: PathBuf,
     pub runtime: PathBuf,
 }
@@ -54,7 +53,6 @@ impl ProjectPaths {
         Self {
             manifest: randomizer_dir.join("randomizer.yaml"),
             contracts: randomizer_dir.join("contracts"),
-            java_contract_lock: randomizer_dir.join("contracts/java.lock.json"),
             fixtures: randomizer_dir.join("fixtures"),
             runtime: randomizer_dir.join("runtime"),
             randomizer_dir,

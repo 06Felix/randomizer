@@ -2,9 +2,9 @@
 
 Randomizer is a schema-driven Rust service for generating structured JSON payloads with random values over HTTP and WebSockets.
 
-It can also be initialized inside an application repository as an explicit local HTTP mocking
-gateway. A versioned project manifest maps normal third-party requests to inline, fixture, or
-contract-generated responses and produces local-profile URL overrides.
+It can also be initialized inside any application repository as an explicit local HTTP mocking
+service. A versioned project manifest maps normal third-party requests to inline, fixture, or
+contract-generated responses while the repository keeps control of its local application settings.
 
 ## Features
 
@@ -16,8 +16,8 @@ contract-generated responses and produces local-profile URL overrides.
 - Mock normal third-party HTTP requests without changing application code.
 - Match requests by service, method, path, query, headers, and JSON body values.
 - Bind request values into deterministic fixture or contract responses.
-- Extract portable response contracts from compiled Java DTOs, including generic wrappers and
-  Jackson property naming.
+- Install a reusable repository skill that can add or update mocks from source, tests, fixtures,
+  types, and existing API specifications.
 
 ## Use Cases
 
@@ -60,25 +60,29 @@ The endpoint for the REST API is `/generate` and for WebSocket is `/stream`. For
 
 ### Project mocking
 
-From a Spring Boot repository:
+From an application repository:
 
 ```sh
 randomizer init
-# Register HTTP services and routes in .randomizer/randomizer.yaml.
-randomizer contract import-java --name task-response \
-  --type 'com.example.ServiceResponse<com.example.TaskDto>'
+# Ask your coding agent: $randomizer-mocks add mocks for the requested endpoints.
 randomizer verify
-randomizer dev -- mvn spring-boot:run -Dspring-boot.run.profiles=local
+randomizer start
 ```
 
-`init` adds one import to the existing local-profile configuration. `up` and `dev` generate the
-selected service URL overrides and start the HTTP gateway. Project mode has no source-analysis,
-message-broker, container-runtime, or agent dependency.
+`init` creates `.randomizer/randomizer.yaml` and installs the repository-local
+`$randomizer-mocks` skill. Invoke the skill whenever endpoints need to be added or updated. It
+reconciles only the requested routes, preserves unrelated configuration, inspects the service's
+actual serialized response behavior, and creates JSON Schema contracts containing evidenced enums,
+booleans, required fields, nullability, collections, formats, and constraints. The Randomizer
+runtime remains language- and framework-independent.
 
-Java DTO extraction supports standard single-module Maven projects in Phase 1. It uses the
-project's Maven wrapper when present, otherwise `mvn`, and requires JDK 17 or newer. The exporter
-is embedded in the Randomizer executable; users do not install a separate exporter or clone this
-repository.
+After updating the Randomizer binary, synchronize the managed repository copy with
+`randomizer skill sync`. The command refuses to replace local skill edits unless `--force` is
+provided.
+
+`start` runs Randomizer in the background and writes logs under `.randomizer/runtime/`.
+Use `randomizer start --foreground` when attached logs are preferable, and stop a managed
+background process with `randomizer stop`.
 
 See [Project Mocking](PROJECT_MOCKING.md) for the technical flow, full manifest format, route
 matching and response binding, generated files, and lifecycle commands.

@@ -1,8 +1,8 @@
 mod args;
-mod contract;
 mod init;
 mod lifecycle;
 mod project;
+mod skill;
 
 use std::{io, net::SocketAddr, path::PathBuf};
 
@@ -18,23 +18,32 @@ pub enum CliError {
     #[error(transparent)]
     Manifest(#[from] crate::project::ManifestError),
     #[error(transparent)]
-    Adapter(#[from] crate::adapter::SpringBootAdapterError),
+    Skill(#[from] skill::SkillError),
     #[error(transparent)]
     Mock(#[from] crate::mock::MockCompileError),
     #[error(transparent)]
     Config(#[from] crate::config::ConfigError),
     #[error(transparent)]
-    JavaDto(#[from] crate::dto::JavaDtoError),
-    #[error(transparent)]
-    JavaContractLock(#[from] crate::dto::JavaContractLockError),
-    #[error(transparent)]
-    Contract(#[from] contract::ContractError),
-    #[error(transparent)]
     StandaloneServer(#[from] crate::server::ServerError),
     #[error("project is already initialized at {0}")]
     AlreadyInitialized(PathBuf),
-    #[error("Randomizer is already running for this project; run `randomizer down` first")]
+    #[error("Randomizer is already running for this project; run `randomizer stop` first")]
     AlreadyRunning,
+    #[error("failed to locate the Randomizer executable: {0}")]
+    CurrentExecutable(#[source] io::Error),
+    #[error("failed to start Randomizer in the background: {0}")]
+    BackgroundStart(#[source] io::Error),
+    #[error("Randomizer did not become ready within 5 seconds; see {log_path}")]
+    StartTimeout { log_path: PathBuf },
+    #[error("Randomizer exited before becoming ready with {status}; see {log_path}")]
+    StartExit {
+        status: std::process::ExitStatus,
+        log_path: PathBuf,
+    },
+    #[error("refusing to stop process {pid} because it is not a managed Randomizer process")]
+    StopOwnerMismatch { pid: u32 },
+    #[error("Randomizer process {pid} did not stop within 5 seconds")]
+    StopTimeout { pid: u32 },
     #[error("failed to encode YAML: {0}")]
     Yaml(#[from] serde_yaml::Error),
     #[error("failed to encode JSON: {0}")]
@@ -69,16 +78,6 @@ pub enum CliError {
     ServerTask(#[source] tokio::task::JoinError),
     #[error("failed to receive shutdown signal: {0}")]
     Signal(#[source] io::Error),
-    #[error("failed to start application command {program:?}: {source}")]
-    ApplicationSpawn {
-        program: String,
-        #[source]
-        source: io::Error,
-    },
-    #[error("failed while waiting for application process: {0}")]
-    ApplicationWait(#[source] io::Error),
-    #[error("application process exited unsuccessfully with {0}")]
-    ApplicationExit(std::process::ExitStatus),
     #[error("failed to connect to Randomizer at {address}: {source}")]
     ResetConnect {
         address: SocketAddr,
@@ -99,14 +98,14 @@ pub async fn run_cli() -> Result<(), CliError> {
             run(config).await?;
         }
         Some(args::Command::Init(args)) => init::init(args)?,
-        Some(args::Command::Contract(args)) => contract::contract(args)?,
+        Some(args::Command::Skill(args)) => skill::skill(args)?,
         Some(args::Command::Verify(args)) => project::verify(args)?,
-        Some(args::Command::Up(args)) => lifecycle::up(args).await?,
-        Some(args::Command::Dev(args)) => lifecycle::dev(args).await?,
+        Some(args::Command::Start(args)) => lifecycle::start(args).await?,
+        Some(args::Command::Stop(args)) => lifecycle::stop(args).await?,
         Some(args::Command::Status(args)) => lifecycle::status(args).await?,
         Some(args::Command::Inspect(args)) => project::inspect(args)?,
         Some(args::Command::Reset(args)) => project::reset(args).await?,
-        Some(args::Command::Down(args)) => lifecycle::down(args).await?,
+        Some(args::Command::RunProject(args)) => lifecycle::run_project(args).await?,
     }
     Ok(())
 }

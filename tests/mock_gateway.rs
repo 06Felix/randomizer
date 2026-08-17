@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fs};
 
 use axum::{
     body::{Body, to_bytes},
@@ -157,6 +157,113 @@ async fn matches_request_metadata_and_binds_all_supported_sources() {
         body,
         json!({"path": "42", "query": "details", "header": "garage", "body": 99})
     );
+}
+
+#[tokio::test]
+async fn generates_enum_boolean_and_collection_fields_from_a_bare_contract() {
+    let directory = tempfile::tempdir().unwrap();
+    let paths = ProjectPaths::for_init(directory.path()).unwrap();
+    fs::create_dir_all(&paths.contracts).unwrap();
+    let contract_path = paths.contracts.join("task-state.json");
+    fs::write(
+        &contract_path,
+        serde_json::to_vec_pretty(&json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["status", "active", "retryable", "tags", "note"],
+            "properties": {
+                "status": {"type": "string", "enum": ["QUEUED", "IN_PROGRESS", "DONE"]},
+                "active": {"type": "boolean"},
+                "retryable": {"const": false},
+                "tags": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 2,
+                    "items": {"type": "string", "enum": ["PRIMARY", "SECONDARY"]}
+                },
+                "note": {"type": ["string", "null"], "minLength": 2}
+            },
+            "additionalProperties": false
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let registry = CompiledMockRegistry::compile(
+        &manifest(vec![ResponseDefinition {
+            status: 200,
+            headers: BTreeMap::new(),
+            delay_ms: 0,
+            body: ResponseBodyDefinition {
+                contract: Some(".randomizer/contracts/task-state.json".into()),
+                ..ResponseBodyDefinition::default()
+            },
+            bindings: Vec::new(),
+        }]),
+        &paths,
+    )
+    .unwrap();
+
+    let response = build_project_router(4, registry)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/mock/service-os/api/v1/tasks/42?include=details")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body: Value =
+        serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
+
+    assert!(["QUEUED", "IN_PROGRESS", "DONE"].contains(&body["status"].as_str().unwrap()));
+    assert!(body["active"].is_boolean());
+    assert_eq!(body["retryable"], false);
+    assert!((1..=2).contains(&body["tags"].as_array().unwrap().len()));
+    assert!(
+        body["tags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tag| { ["PRIMARY", "SECONDARY"].contains(&tag.as_str().unwrap()) })
+    );
+    assert!(body["note"].is_string() || body["note"].is_null());
+}
+
+#[test]
+fn rejects_contract_features_that_cannot_generate_during_verification() {
+    let directory = tempfile::tempdir().unwrap();
+    let paths = ProjectPaths::for_init(directory.path()).unwrap();
+    fs::create_dir_all(&paths.contracts).unwrap();
+    fs::write(
+        paths.contracts.join("unsupported.json"),
+        serde_json::to_vec_pretty(&json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "string",
+            "format": "hostname"
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let error = CompiledMockRegistry::compile(
+        &manifest(vec![ResponseDefinition {
+            status: 200,
+            headers: BTreeMap::new(),
+            delay_ms: 0,
+            body: ResponseBodyDefinition {
+                contract: Some(".randomizer/contracts/unsupported.json".into()),
+                ..ResponseBodyDefinition::default()
+            },
+            bindings: Vec::new(),
+        }]),
+        &paths,
+    )
+    .err()
+    .unwrap()
+    .to_string();
+
+    assert!(error.contains("unsupported format \"hostname\""));
 }
 
 fn manifest(responses: Vec<ResponseDefinition>) -> ProjectManifest {

@@ -1,4 +1,4 @@
 interface:
   display_name: "Manage Randomizer Mocks"
-  short_description: "Add or update HTTP mock contracts"
-  default_prompt: "Use $randomizer-mocks to inspect the actual service behavior and add or update the requested HTTP endpoints and response contracts."
+  short_description: "Create language-aware HTTP mock contracts"
+  default_prompt: "Use $randomizer-mocks to inspect the actual serialized service behavior, create any requested generator payloads from evidenced variable semantics, and add or update the requested HTTP endpoints and contracts."

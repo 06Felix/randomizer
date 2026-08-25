@@ -6,17 +6,27 @@ use tokio::{
 };
 
 use crate::{
+    generation::GenerationMode,
     mock::CompiledMockRegistry,
     project::{
-        ProjectPaths, check_managed_contracts, check_wiring, validate_managed_contract_references,
-        validate_manifest,
+        ProjectManifest, ProjectPaths, check_managed_contracts, check_wiring, load_contract_lock,
+        validate_managed_contract_references, validate_manifest,
     },
 };
 
-use super::{CliError, args::ProjectArgs};
+use super::{
+    CliError,
+    args::{ProjectArgs, VerifyArgs},
+};
 
-pub fn verify(args: ProjectArgs) -> Result<(), CliError> {
-    let paths = ProjectPaths::discover(Some(&args.project))?;
+pub fn verify(args: VerifyArgs) -> Result<(), CliError> {
+    let paths = ProjectPaths::discover(Some(&args.project.project))?;
+    let manifest = paths.load_manifest()?;
+    verify_required_managed_contract_routes(
+        &paths,
+        &manifest,
+        &args.required_managed_contract_routes,
+    )?;
     verify_paths(&paths)?;
     Ok(())
 }
@@ -35,6 +45,38 @@ pub(crate) fn verify_paths(paths: &ProjectPaths) -> Result<(), CliError> {
         contracts.names.len(),
         wiring.entries.len(),
     );
+    Ok(())
+}
+
+fn verify_required_managed_contract_routes(
+    paths: &ProjectPaths,
+    manifest: &ProjectManifest,
+    required_routes: &[String],
+) -> Result<(), CliError> {
+    if required_routes.is_empty() {
+        return Ok(());
+    }
+    let lock = load_contract_lock(paths)?;
+    for required in required_routes {
+        let route = manifest
+            .routes
+            .iter()
+            .find(|route| route.id == *required)
+            .ok_or_else(|| CliError::RequiredManagedContractRouteNotFound(required.clone()))?;
+        let uses_managed_contract = route.responses.iter().any(|response| {
+            response.body.mode != GenerationMode::Example
+                && response.body.contract.as_deref().is_some_and(|artifact| {
+                    lock.contracts
+                        .values()
+                        .any(|managed| managed.artifact == artifact)
+                })
+        });
+        if !uses_managed_contract {
+            return Err(CliError::RequiredManagedContractRouteNotGenerating(
+                required.clone(),
+            ));
+        }
+    }
     Ok(())
 }
 

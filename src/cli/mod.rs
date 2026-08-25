@@ -98,6 +98,12 @@ pub enum CliError {
     ResetIo(#[source] io::Error),
     #[error("Randomizer rejected reset request: {0}")]
     ResetRejected(String),
+    #[error("required managed-contract route {0:?} was not found in the manifest")]
+    RequiredManagedContractRouteNotFound(String),
+    #[error(
+        "route {0:?} has no response backed by a managed contract in a generating mode; replace its inline, fixture, unmanaged, or mode: example body"
+    )]
+    RequiredManagedContractRouteNotGenerating(String),
 }
 
 pub async fn run_cli() -> Result<(), CliError> {

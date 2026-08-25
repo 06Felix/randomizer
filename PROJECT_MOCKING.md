@@ -23,7 +23,7 @@ contract, reconciles the route, applies structured local wiring, and verifies th
 the changes, then run:
 
 ```sh
-randomizer verify
+randomizer verify --require-managed-contract-route get-user
 randomizer start
 # Start the application with its normal local command or IDE configuration.
 ```
@@ -38,6 +38,7 @@ Stop the managed background process with `randomizer stop`.
 .randomizer/
 ├── randomizer.yaml
 ├── contracts/
+├── sources/                  # reviewable schemas assembled from repository evidence
 ├── fixtures/
 ├── skills.lock.json
 ├── contracts.transaction.json # transient recovery journal, normally absent
@@ -59,8 +60,9 @@ Stop the managed background process with `randomizer stop`.
 ```
 
 The first managed contract import or analysis also creates
-`.randomizer/contracts.lock.json`. Commit the manifest, managed contracts, sanitized fixtures,
-contract lock, skill files, skill lock, and safe repository-owned local-development configuration.
+`.randomizer/contracts.lock.json`. Commit the manifest, managed contracts, their source schemas,
+sanitized fixtures, contract lock, skill files, skill lock, and safe repository-owned
+local-development configuration.
 Contract updates use a temporary `.randomizer/contracts.transaction.json` recovery journal and a
 process lock; both are gitignored. An interrupted update is restored to its previous artifact and
 lock state when the next contract command runs.
@@ -134,8 +136,12 @@ The executable path and provider arguments are persisted verbatim in
 Serialized-example import preserves the example and conservatively infers its observed
 primitive/container shape plus unambiguous date, date-time, and UUID formats. Warning diagnostics
 record that one example cannot prove a complete enum, nullability/optionality across every response,
-or unobserved wrapper variants. Use the sanitized example as an exact fixture when those unknowns
-make variable generation unsafe.
+or unobserved wrapper variants. For an explicitly dynamic route without an upstream schema, the
+skill may assemble a reviewable Draft 2020-12 schema in `.randomizer/sources/` by combining those
+observations with active serializer configuration, exact source enums, and consumer-side accepted
+discriminator/configuration values. Unknown plain strings remain broadly typed; business values are
+never invented. An exact fixture is reserved for intentionally static behavior or an explicitly
+accepted downgrade.
 
 Managed contracts can be reproduced and audited:
 
@@ -157,7 +163,7 @@ flowchart LR
     CFG["Local app setting"] -->|"wiring apply"| APP["Application HTTP client"]
     APP -->|"normal HTTP request"| GW["Randomizer gateway"]
     MF["randomizer.yaml"] --> GW
-    CT["Managed contract or fixture"] --> GW
+    CT["Managed contract or static fixture"] --> GW
     GW -->|"matched response"| APP
 ```
 
@@ -208,6 +214,7 @@ routes:
         bindings:
           - target: /id
             source: ${request.path.user_id}
+            coerce: integer
       - status: 503
         body:
           inline:
@@ -235,7 +242,9 @@ Bindings replace an existing response JSON Pointer using:
 - `${request.header.<name>}`
 - `${request.body./json/pointer}`
 
-Contract responses are validated again after bindings are applied.
+Path, query, and header values are strings by default. Add `coerce: integer` when the response
+contract requires an integer, such as a numeric path ID. Coercion is strict and rejects invalid or
+out-of-range values. Contract responses are validated again after bindings are applied.
 
 ## Local application wiring
 
@@ -333,7 +342,7 @@ generation subset and fixture fallbacks.
 ```sh
 randomizer contract check
 randomizer wiring check
-randomizer verify
+randomizer verify --require-managed-contract-route get-user
 randomizer start
 ```
 
@@ -342,7 +351,9 @@ generates/validates contract responses. It also requires every managed contract 
 a route whose method, path, response status, and effective media type match the locked endpoint.
 Check its reported counts against the requested mock: an empty project legitimately reports zero
 managed contracts, routes, and wiring entries, so success alone does not establish that an endpoint
-was configured. Then start the application normally.
+was configured. `--require-managed-contract-route` makes that intent executable and may be repeated
+for multiple dynamic routes; inline, fixture, unmanaged, and `mode: example` responses do not
+satisfy it. Then start the application normally.
 
 Other lifecycle commands:
 

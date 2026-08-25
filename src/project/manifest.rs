@@ -175,6 +175,14 @@ pub struct ResponseBodyDefinition {
 pub struct BindingDefinition {
     pub target: String,
     pub source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coerce: Option<BindingCoercion>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BindingCoercion {
+    Integer,
 }
 
 #[cfg(test)]
@@ -257,5 +265,28 @@ routes: []
 
         assert_eq!(manifest.version, 1);
         assert!(manifest.services[0].wiring.is_empty());
+    }
+
+    #[test]
+    fn parses_explicit_binding_coercion_without_changing_legacy_bindings() {
+        let coerced: BindingDefinition = serde_yaml::from_str(
+            r#"
+target: /taskId
+source: ${request.path.taskId}
+coerce: integer
+"#,
+        )
+        .unwrap();
+        assert_eq!(coerced.coerce, Some(BindingCoercion::Integer));
+
+        let legacy: BindingDefinition = serde_yaml::from_str(
+            r#"
+target: /taskId
+source: ${request.path.taskId}
+"#,
+        )
+        .unwrap();
+        assert_eq!(legacy.coerce, None);
+        assert!(!serde_yaml::to_string(&legacy).unwrap().contains("coerce:"));
     }
 }

@@ -24,7 +24,7 @@ pub enum Command {
     /// Apply or verify application endpoint wiring.
     Wiring(WiringArgs),
     /// Validate the manifest, contracts, fixtures, and mock routes.
-    Verify(ProjectArgs),
+    Verify(VerifyArgs),
     /// Start the local HTTP mocking service.
     Start(StartArgs),
     /// Stop the managed local HTTP mocking service.
@@ -202,6 +202,15 @@ pub struct WiringProjectArgs {
     /// Limit the operation to one configured service.
     #[arg(long)]
     pub service: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct VerifyArgs {
+    #[command(flatten)]
+    pub project: ProjectArgs,
+    /// Require this route to have at least one response backed by a managed contract.
+    #[arg(long = "require-managed-contract-route", value_name = "ROUTE_ID")]
+    pub required_managed_contract_routes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Args)]

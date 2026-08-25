@@ -14,6 +14,7 @@ pub struct ProjectPaths {
     pub contracts_lock: PathBuf,
     pub contracts_transaction: PathBuf,
     pub contracts_transaction_lock: PathBuf,
+    pub sources: PathBuf,
     pub fixtures: PathBuf,
     pub runtime: PathBuf,
 }
@@ -59,6 +60,7 @@ impl ProjectPaths {
             contracts_lock: randomizer_dir.join("contracts.lock.json"),
             contracts_transaction: randomizer_dir.join("contracts.transaction.json"),
             contracts_transaction_lock: randomizer_dir.join("runtime/contracts.transaction.lock"),
+            sources: randomizer_dir.join("sources"),
             fixtures: randomizer_dir.join("fixtures"),
             runtime: randomizer_dir.join("runtime"),
             randomizer_dir,

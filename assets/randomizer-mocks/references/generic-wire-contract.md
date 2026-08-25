@@ -10,7 +10,10 @@ For the requested method, path, status, and media type, select one authoritative
 1. committed JSON Schema explicitly declaring Draft 2020-12;
 2. committed OpenAPI 3.1 response schema using its default base or Draft 2020-12 dialect;
 3. a versioned external provider;
-4. a sanitized serialized example imported conservatively or used as an exact fixture.
+4. for dynamic output, a Draft 2020-12 source schema under `.randomizer/sources/` derived from
+   corroborated serialized, serializer/type, and consumer/configuration evidence;
+5. a sanitized serialized example imported conservatively or, for a static response, used as an
+   exact fixture.
 
 Trace the outbound client only far enough to resolve the endpoint, response root/wrapper, source
 artifact, and local configuration setting. Consumer access proves application dependency but does
@@ -109,6 +112,28 @@ Do not accept an adapter that changes the endpoint selector, silently defaults a
 enum/date-time/wrapper behavior, analyzes sources outside the declared scope, omits source
 fingerprints, or prints non-protocol content to standard output.
 
+Provider output must not add plausible business values that its fingerprinted sources do not
+establish. This includes enum/const members, discriminator/status values, examples/defaults,
+identifiers, names, currencies, locales, dates, constraints, and wrappers. Report unresolved domain
+semantics as diagnostics instead of inventing them.
+
+The same rule applies to a manually derived source schema. Use samples for observed wire shape,
+active serializer/type metadata for wire types and exact enum serialization, and consumer branches
+plus configuration for accepted discriminator values. Cite those project-relative sources in
+schema `$comment` annotations. Unknown plain-string domains may remain broad strings; they must not
+be converted into guessed enums.
+
+A sanitized sample that unambiguously matches RFC 3339 may authorize `format: date-time` for the
+working mock, consistent with the built-in importer. It does not prove time-zone policy, allowed
+ranges, ordering, cross-field temporal relationships, or every response representation; those need
+serializer, specification, or authoritative-test corroboration. Scope consumer/config discriminator
+values to the selected local profile/settings used by the wiring and test.
+
+Define the contract at the upstream HTTP boundary. Exclude fields synthesized or overwritten by
+local post-processing after the client returns, even if a shared DTO/type contains them. Constrain
+the evidenced upstream discriminator so downstream enrichment succeeds, and require corroborated
+fields that the requested consumer path must receive to avoid null/fallback behavior.
+
 ## Serialized examples
 
 An example is strong evidence for the exact observed JSON names, primitive/container types,
@@ -117,13 +142,16 @@ wrappers, and values. Alone, it does not establish:
 - the complete set of enum values;
 - whether a boolean is variable or fixed;
 - whether a property is always present, optional, or nullable;
-- whether a string has date/time semantics;
+- time-zone policy, allowed ranges, ordering, or cross-field relationships beyond an observed
+  unambiguous date/time syntax;
 - unobserved collection bounds, variants, or error shapes.
 
 The built-in serialized-example importer preserves the example, infers observed
 primitive/container shapes and unambiguous date, date-time, or UUID formats, and emits warning
-diagnostics for claims the sample cannot prove. Use the example as a fixture when those unknowns
-matter. An external provider may add only constraints backed by additional fingerprinted evidence.
+diagnostics for claims the sample cannot prove. A fixture is a static fallback when those unknowns
+matter. If randomization was explicitly requested, use that fallback only after explicit user
+agreement and report that the dynamic goal remains unmet. An external provider may add only
+constraints backed by additional fingerprinted evidence.
 
 ## Optional language adapters
 

@@ -16,9 +16,7 @@
 - Teach `$randomizer-mocks` to derive auditable Draft 2020-12 source schemas from corroborated
   repository evidence when dynamic output is requested and no complete upstream schema/provider is
   available, while preserving consumer discriminators and locally derived fields correctly.
-- Initialize `.randomizer/sources/` for reviewable derived schemas and add a Garage-shaped managed
-  contract regression covering enums, date-times, numeric strings, integer path binding, variation,
-  validation, and replay.
+- Initialize `.randomizer/sources/` for reviewable derived schemas.
 
 ## v1.2.0-rc.5 - 2026-08-25
 

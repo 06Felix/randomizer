@@ -13,7 +13,7 @@ use super::{
 
 const LOCK_FORMAT_VERSION: u32 = 1;
 const SKILL_NAME: &str = "randomizer-mocks";
-const SKILL_VERSION: u32 = 5;
+const SKILL_VERSION: u32 = 6;
 const LOCK_PATH: &str = ".randomizer/skills.lock.json";
 const SKILL_PATH: &str = ".agents/skills/randomizer-mocks/SKILL.md";
 const METADATA_PATH: &str = ".agents/skills/randomizer-mocks/agents/openai.yaml";

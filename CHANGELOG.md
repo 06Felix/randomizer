@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.2.0-rc.6 - 2026-08-26
+
+### Breaking Changes
+
+- Rust library callers constructing `BindingDefinition` with a struct literal must initialize the
+  new optional `coerce` field. Existing YAML manifests remain compatible when it is omitted.
+
+### Features
+
+- Add explicit integer coercion for request bindings so numeric path parameters remain JSON
+  integers and continue to pass post-binding response-contract validation.
+- Add `randomizer verify --require-managed-contract-route <route-id>` to make dynamic-response
+  intent executable instead of accepting a fixture-only route as complete.
+- Teach `$randomizer-mocks` to derive auditable Draft 2020-12 source schemas from corroborated
+  repository evidence when dynamic output is requested and no complete upstream schema/provider is
+  available, while preserving consumer discriminators and locally derived fields correctly.
+- Initialize `.randomizer/sources/` for reviewable derived schemas and add a Garage-shaped managed
+  contract regression covering enums, date-times, numeric strings, integer path binding, variation,
+  validation, and replay.
+
 ## v1.2.0-rc.5 - 2026-08-25
 
 ### Features

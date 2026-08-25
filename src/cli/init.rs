@@ -19,6 +19,10 @@ pub fn init(args: InitArgs) -> Result<(), CliError> {
         path: paths.fixtures.clone(),
         source,
     })?;
+    std::fs::create_dir_all(&paths.sources).map_err(|source| CliError::Write {
+        path: paths.sources.clone(),
+        source,
+    })?;
     std::fs::create_dir_all(&paths.runtime).map_err(|source| CliError::Write {
         path: paths.runtime.clone(),
         source,
@@ -95,6 +99,7 @@ mod tests {
         assert!(manifest.services.is_empty());
         assert!(manifest.routes.is_empty());
         assert!(paths.contracts.is_dir());
+        assert!(paths.sources.is_dir());
         assert!(paths.fixtures.is_dir());
         let installed_skill = std::fs::read_to_string(
             directory
@@ -142,7 +147,7 @@ mod tests {
             &std::fs::read(directory.path().join(".randomizer/skills.lock.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(skill_lock["skill_version"], 5);
+        assert_eq!(skill_lock["skill_version"], 6);
         assert_eq!(skill_lock["files"].as_object().unwrap().len(), 10);
         assert_eq!(
             std::fs::read_to_string(paths.randomizer_dir.join(".gitignore")).unwrap(),

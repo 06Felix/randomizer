@@ -31,6 +31,7 @@ async fn serves_normal_third_party_request_and_binds_path_values() {
         bindings: vec![BindingDefinition {
             target: "/data/id".into(),
             source: "${request.path.taskId}".into(),
+            coerce: None,
         }],
     }]);
     let registry = CompiledMockRegistry::compile(&manifest, &paths).unwrap();
@@ -112,18 +113,22 @@ async fn matches_request_metadata_and_binds_all_supported_sources() {
             BindingDefinition {
                 target: "/path".into(),
                 source: "${request.path.taskId}".into(),
+                coerce: None,
             },
             BindingDefinition {
                 target: "/query".into(),
                 source: "${request.query.include}".into(),
+                coerce: None,
             },
             BindingDefinition {
                 target: "/header".into(),
                 source: "${request.header.x-client}".into(),
+                coerce: None,
             },
             BindingDefinition {
                 target: "/body".into(),
                 source: "${request.body./payload/id}".into(),
+                coerce: None,
             },
         ],
     }]);

@@ -1,6 +1,6 @@
 [package]
 name = "randomizer"
-version = "1.2.0-rc.5"
+version = "1.2.0-rc.6"
 edition = "2024"
 authors = ["rangaraja-r", "mark-felix"]
 

@@ -9,4 +9,10 @@ string or numeric enum values, nil/omitted/null behavior, wrapper roots, `time.T
 custom time types, decimals, UUIDs, byte slices, and maps.
 
 Go field types and constants alone do not prove their wire form. Prefer committed OpenAPI/JSON
-Schema or a serialized fixture when custom marshaling cannot be executed or inspected reliably.
+Schema when custom marshaling cannot be executed or inspected reliably. A serialized fixture is a
+static fallback; if randomized/dynamic output was requested, use it only after explicit user
+agreement and report that the dynamic goal was not delivered.
+
+When samples, active `encoding/json` behavior, and consumer/configuration branches provide enough
+corroboration, capture those claims in an auditable `.randomizer/sources/` Draft 2020-12 schema and
+import it instead of downgrading dynamic intent to a fixture.

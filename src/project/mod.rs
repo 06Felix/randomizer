@@ -12,7 +12,7 @@ pub use contracts::{
     save_managed_contract, save_managed_contract_if_unchanged,
 };
 pub use manifest::{
-    BindingDefinition, CURRENT_MANIFEST_VERSION, ManifestVersion, MatchDefinition,
+    BindingCoercion, BindingDefinition, CURRENT_MANIFEST_VERSION, ManifestVersion, MatchDefinition,
     ProjectDefinition, ProjectManifest, ResponseBodyDefinition, ResponseDefinition,
     RouteDefinition, ServiceBasePathBehavior, ServiceBaseSafety, ServiceDefinition,
     WiringDefinition, WiringFormat, WiringTarget,

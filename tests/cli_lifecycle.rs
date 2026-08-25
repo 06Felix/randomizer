@@ -74,6 +74,12 @@ fn exposes_the_generic_project_commands() {
     assert!(import_stdout.contains("json-schema"));
     assert!(import_stdout.contains("openapi"));
     assert!(import_stdout.contains("serialized-example"));
+
+    let verify_help = run_randomizer(&["verify", "--help"]);
+    assert!(verify_help.status.success());
+    assert!(
+        String::from_utf8_lossy(&verify_help.stdout).contains("--require-managed-contract-route")
+    );
 }
 
 #[test]

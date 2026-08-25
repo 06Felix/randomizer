@@ -9,4 +9,10 @@ exact enum values and shapes, `Option<T>` omission versus null, wrapper roots, a
 `chrono`, `time`, UUID, decimal, byte, and custom date/time values.
 
 Rust type declarations alone do not establish the wire contract. If custom serialization cannot be
-resolved, use committed OpenAPI/JSON Schema or a serialized fixture instead.
+resolved, use committed OpenAPI/JSON Schema. A serialized fixture is a static fallback; if
+randomized/dynamic output was requested, use it only after explicit user agreement and report that
+the dynamic goal was not delivered.
+
+When payload samples, active Serde behavior, and consumer/configuration branches provide enough
+corroboration, capture those claims in an auditable `.randomizer/sources/` Draft 2020-12 schema and
+import it instead of downgrading dynamic intent to a fixture.

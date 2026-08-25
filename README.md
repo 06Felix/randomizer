@@ -66,7 +66,7 @@ From an application repository:
 ```sh
 randomizer init
 # Ask your coding agent: $randomizer-mocks mock GET /users/{user_id}.
-randomizer verify
+randomizer verify --require-managed-contract-route get-user
 randomizer start
 # Start the application with its normal local command or IDE configuration.
 ```
@@ -79,12 +79,16 @@ for committed JSON Schema, OpenAPI 3.1, or a conservative serialized example, or
 runs `randomizer wiring apply` for the application's exact local configuration setting. It requires
 claim-level evidence at each exact schema location for property names, types, enum/const values,
 date/time formats, wrappers, requiredness, nullability, and constraints instead of guessing from
-source-language type names.
+source-language type names. When dynamic output is requested and no upstream schema exists, the
+skill can assemble a reviewable Draft 2020-12 source under `.randomizer/sources/` from corroborated
+serialized examples, active serializer behavior, and consumer constraints, then import it as a
+managed contract.
 
 The contract commands store managed contract envelopes under `.randomizer/contracts/` and
 provenance/source fingerprints in `.randomizer/contracts.lock.json`. Serialized-example import
 preserves the example, infers only observed shapes and unambiguous formats, and reports what one
-sample cannot prove; use an exact fixture when that is insufficient for safe variable generation.
+sample cannot prove. A fixture remains available for intentionally static responses, but it is not
+a successful fallback for an explicitly randomized route.
 Randomizer's runtime and provider protocol are language-independent; teams may supply adapters for
 any language, but language analyzers are not bundled.
 
@@ -95,6 +99,9 @@ transaction journal.
 Before starting, `randomizer verify` checks the version 2 manifest, contracts, exact locked
 method/path/status/media-type route associations, and declared wiring. Version 1 manifests remain
 readable until structured wiring is added.
+Pass `--require-managed-contract-route <route-id>` for each route that must generate dynamic data;
+verification then fails if that route resolves only to inline, fixture, unmanaged, or
+`mode: example` bodies.
 You can also run the narrower `randomizer contract check` and `randomizer wiring check`. The
 gateway does not proxy unmatched calls, so every call sharing a rewired service base URL must be
 mocked. The client must also be proven to preserve the gateway's base-path prefix when joining

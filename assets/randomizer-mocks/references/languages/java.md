@@ -17,4 +17,10 @@ Require explicit evidence for:
 - property names changed by annotations, strategies, or mixins.
 
 Java class names and enum constants are not wire evidence. If the provider cannot observe active
-serializer behavior, use committed OpenAPI/JSON Schema or a serialized fixture instead.
+serializer behavior, use committed OpenAPI/JSON Schema. A serialized fixture is a static fallback;
+if randomized/dynamic output was requested, use it only after explicit user agreement and report
+that the dynamic goal was not delivered.
+
+When payload samples, the active serializer/type model, and consumer/configuration branches provide
+enough corroboration, capture those claims in an auditable `.randomizer/sources/` Draft 2020-12
+schema and import it instead of downgrading dynamic intent to a fixture.

@@ -1,6 +1,7 @@
 use std::{fs, path::Path, process::Command};
 
 use randomizer::{
+    generation::GenerationMode,
     project::{
         MatchDefinition, ProjectPaths, ResponseBodyDefinition, ResponseDefinition, RouteDefinition,
         ServiceBasePathBehavior, ServiceBaseSafety, ServiceDefinition, WiringDefinition,
@@ -134,6 +135,46 @@ fn imports_refreshes_and_checks_a_language_neutral_contract() {
     fs::write(&paths.manifest, serde_yaml::to_string(&manifest).unwrap()).unwrap();
     let checked = run_randomizer(&["verify", "--project", root]);
     assert!(checked.status.success());
+
+    let required = run_randomizer(&[
+        "verify",
+        "--project",
+        root,
+        "--require-managed-contract-route",
+        "get-user",
+    ]);
+    assert!(
+        required.status.success(),
+        "{}",
+        String::from_utf8_lossy(&required.stderr)
+    );
+
+    manifest.routes[0].responses[0].body.mode = GenerationMode::Example;
+    fs::write(&paths.manifest, serde_yaml::to_string(&manifest).unwrap()).unwrap();
+    let example_mode = run_randomizer(&[
+        "verify",
+        "--project",
+        root,
+        "--require-managed-contract-route",
+        "get-user",
+    ]);
+    assert!(!example_mode.status.success());
+    assert!(
+        String::from_utf8_lossy(&example_mode.stderr)
+            .contains("managed contract in a generating mode")
+    );
+    manifest.routes[0].responses[0].body.mode = GenerationMode::Valid;
+    fs::write(&paths.manifest, serde_yaml::to_string(&manifest).unwrap()).unwrap();
+
+    let missing = run_randomizer(&[
+        "verify",
+        "--project",
+        root,
+        "--require-managed-contract-route",
+        "missing-route",
+    ]);
+    assert!(!missing.status.success());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("was not found"));
 }
 
 #[cfg(unix)]
@@ -319,6 +360,19 @@ fn applies_and_verifies_structured_application_wiring() {
     });
     fs::write(&paths.manifest, serde_yaml::to_string(&manifest).unwrap()).unwrap();
     let root = directory.path().to_str().unwrap();
+
+    let static_route = run_randomizer(&[
+        "verify",
+        "--project",
+        root,
+        "--require-managed-contract-route",
+        "get-user",
+    ]);
+    assert!(!static_route.status.success());
+    assert!(
+        String::from_utf8_lossy(&static_route.stderr)
+            .contains("has no response backed by a managed contract in a generating mode")
+    );
 
     let stale = run_randomizer(&["wiring", "check", "--project", root]);
     assert!(!stale.status.success());

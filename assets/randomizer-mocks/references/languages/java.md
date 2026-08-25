@@ -1,35 +1,20 @@
-# Java/JVM Wire-Contract Playbook
+# Optional Java/JVM Provider Guidance
 
-Use for Java or JVM repositories. Map Java types to the serialized JSON wire shape only after
-inspecting the active serializer configuration.
+Randomizer does not bundle a Java analyzer. Use this reference only to evaluate or drive an external
+protocol-v1 provider supplied by the repository or developer.
 
-## Inspect first
+A trustworthy provider should use the application's real Jackson, Gson, Moshi, or Kotlin
+serialization configuration. It should resolve property aliases, naming policies, inclusion rules,
+generic wrappers, polymorphism, custom serializers, validation metadata, and `ObjectMapper`
+modules/settings.
 
-- Jackson/Gson/Moshi/Kotlin serialization configuration;
-- `@JsonProperty`, `@JsonValue`, `@JsonFormat`, `@JsonInclude`, `@JsonCreator`, aliases, and naming
-  strategies;
-- custom serializers/deserializers and registered modules;
-- generic wrappers, polymorphic annotations, validation annotations, fixtures, and integration tests;
-- `ObjectMapper` settings such as timestamps, null inclusion, Java time modules, and unknown fields.
+Require explicit evidence for:
 
-## High-risk mappings
+- exact serialized enum values, including `@JsonValue` and custom representations;
+- omission versus explicit null, especially `@JsonInclude` and boxed values;
+- `LocalDate`, `Instant`, offset/zoned/local date-time types, `Date`, and custom formats;
+- `Duration`, time-only values, `BigDecimal`, UUID, bytes, and wrapper roots;
+- property names changed by annotations, strategies, or mixins.
 
-| Java source | Contract decision |
-| --- | --- |
-| `enum` | Use exact serialized values from annotations, serializer, or fixture. Constants are not enough. |
-| `boolean` / `Boolean` | Determine both-value validity, nullability, and omission separately. |
-| `LocalDate` | Use `string` + `format: date` only when ISO date serialization is evidenced. |
-| `Instant`, `OffsetDateTime`, `ZonedDateTime` | Use `date-time` only when RFC 3339 text is evidenced. |
-| `LocalDateTime` | Do not assume `date-time`; no offset may be serialized. Use evidence-backed string rules. |
-| `LocalTime`, `OffsetTime` | Randomizer has no generated `time` format; use a supported string rule or fixture. |
-| `Duration` | Inspect whether the wire value is ISO text, numeric, or an object; use a fixture if unsupported. |
-| `Date` | Confirm formatted text versus epoch number from mapper configuration. |
-| `BigDecimal` | Confirm JSON number versus quoted string and preserve only evidenced bounds. |
-| `UUID` | Use `format: uuid` only when serialized as a UUID string. |
-| `byte[]` | Confirm Base64 string, numeric array, or custom representation. |
-
-`@JsonInclude(NON_NULL)` affects omission, not merely nullability. Primitive defaults do not prove that
-the property is required. `@JsonValue` can make an enum serialize as a string, number, or object.
-
-Before committing a Java contract, write down the annotation/configuration or fixture proving every
-enum value, property name, date/time representation, required field, and null/omission decision.
+Java class names and enum constants are not wire evidence. If the provider cannot observe active
+serializer behavior, use committed OpenAPI/JSON Schema or a serialized fixture instead.

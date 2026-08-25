@@ -11,13 +11,14 @@ contract-generated responses while the repository keeps control of its local app
 - Generate a single random JSON payload with a REST API.
 - Stream random JSON payloads continuously over WebSockets.
 - Supports int, float, string, enum, boolean, uuid, object, and list generation.
-- Import, validate, and generate from JSON Schema Draft 2020-12 contracts.
+- Import, analyze, refresh, validate, and generate from managed JSON Schema Draft 2020-12 contracts.
 - Generate valid, minimum, maximum, boundary, invalid, or example payloads reproducibly.
 - Mock normal third-party HTTP requests without changing application code.
 - Match requests by service, method, path, query, headers, and JSON body values.
 - Bind request values into deterministic fixture or contract responses.
-- Install a reusable language-aware repository skill that can add or update mocks from serialized
-  source behavior, tests, fixtures, types, and existing API specifications, with a generic fallback.
+- Install a reusable language-neutral repository skill that selects committed JSON Schema, OpenAPI 3.1,
+  serialized examples/fixtures, or optional versioned providers and deterministically rewires local
+  settings.
 
 ## Use Cases
 
@@ -64,17 +65,40 @@ From an application repository:
 
 ```sh
 randomizer init
-# Ask your coding agent: $randomizer-mocks add mocks for the requested endpoints.
+# Ask your coding agent: $randomizer-mocks mock GET /users/{user_id}.
 randomizer verify
 randomizer start
+# Start the application with its normal local command or IDE configuration.
 ```
 
 `init` creates `.randomizer/randomizer.yaml` and installs the repository-local
-`$randomizer-mocks` skill. Invoke the skill whenever endpoints need to be added or updated. It
-reconciles only the requested routes, preserves unrelated configuration, inspects the service's
-actual serialized response behavior, and creates JSON Schema contracts containing evidenced enums,
-booleans, required fields, nullability, collections, formats, and constraints. The Randomizer
-runtime remains language- and framework-independent.
+`$randomizer-mocks` skill. Invoke the skill with the outbound endpoint whenever a mock needs to be
+added or updated. The skill selects authoritative wire evidence, runs `randomizer contract import`
+for committed JSON Schema, OpenAPI 3.1, or a conservative serialized example, or runs
+`randomizer contract analyze` for a supplied protocol-v1 provider. It then reconciles the route and
+runs `randomizer wiring apply` for the application's exact local configuration setting. It requires
+claim-level evidence at each exact schema location for property names, types, enum/const values,
+date/time formats, wrappers, requiredness, nullability, and constraints instead of guessing from
+source-language type names.
+
+The contract commands store managed contract envelopes under `.randomizer/contracts/` and
+provenance/source fingerprints in `.randomizer/contracts.lock.json`. Serialized-example import
+preserves the example, infers only observed shapes and unambiguous formats, and reports what one
+sample cannot prove; use an exact fixture when that is insufficient for safe variable generation.
+Randomizer's runtime and provider protocol are language-independent; teams may supply adapters for
+any language, but language analyzers are not bundled.
+
+Contract artifacts and their lock entry are committed as one recoverable update. An interrupted
+write is rolled back automatically on the next contract command using a transient, gitignored
+transaction journal.
+
+Before starting, `randomizer verify` checks the version 2 manifest, contracts, exact locked
+method/path/status/media-type route associations, and declared wiring. Version 1 manifests remain
+readable until structured wiring is added.
+You can also run the narrower `randomizer contract check` and `randomizer wiring check`. The
+gateway does not proxy unmatched calls, so every call sharing a rewired service base URL must be
+mocked. The client must also be proven to preserve the gateway's base-path prefix when joining
+endpoint paths; otherwise use safe static route-specific wiring or an application-side adapter.
 
 After updating the Randomizer binary, synchronize the managed repository copy with
 `randomizer skill sync`. The command refuses to replace local skill edits unless `--force` is

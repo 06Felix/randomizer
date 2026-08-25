@@ -1,98 +1,149 @@
-# Randomizer Contract Authoring
+# Randomizer Contract Lifecycle
 
-Create contracts as bare JSON Schema Draft 2020-12 documents. Store them under
-`.randomizer/contracts/` and reference them from `randomizer.yaml`. Randomizer supplies the contract
-name, source, version, and content hash at verification and runtime.
+Managed response contracts are Draft 2020-12 JSON Schema envelopes stored under
+`.randomizer/contracts/`. Create and update them through the contract commands so the schema,
+provenance, source fingerprints, and `.randomizer/contracts.lock.json` remain consistent. Contract
+commands commit the artifact and lock as one recoverable transaction. If a command is interrupted,
+leave its gitignored transaction journal in place so the next contract command can restore the
+previous consistent state.
 
-## Contract example
+A managed contract contains:
 
 ```json
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "required": ["id", "status", "active", "retryable", "roles"],
-  "properties": {
-    "id": { "type": "string", "format": "uuid" },
-    "status": { "type": "string", "enum": ["ACTIVE", "SUSPENDED"] },
-    "active": { "type": "boolean" },
-    "retryable": { "const": false },
-    "display_name": { "type": ["string", "null"], "minLength": 1 },
-    "roles": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 5,
-      "items": { "$ref": "#/$defs/role" }
-    }
+  "name": "get-user-200",
+  "version": "1",
+  "source": "specs/users.schema.json",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object"
   },
-  "$defs": {
-    "role": { "type": "string", "enum": ["OWNER", "MEMBER", "VIEWER"] }
-  },
-  "additionalProperties": false
+  "content_hash": "<canonical-schema-sha256>"
 }
 ```
 
-```yaml
-body:
-  contract: .randomizer/contracts/users-get-user-200.json
-  mode: valid
+Legacy bare JSON Schema contract files remain supported at runtime. Import or analyze new contracts
+to get explicit identity, version, source, and content integrity.
+
+## Import authoritative schemas
+
+Import a standalone schema. Its root must explicitly declare
+`"$schema": "https://json-schema.org/draft/2020-12/schema"`; Randomizer will not guess the dialect:
+
+```sh
+randomizer contract import get-user-200 \
+  --source specs/users.schema.json \
+  --format json-schema \
+  --method GET --endpoint /users/{user_id} --status 200
 ```
 
-## Evidence mapping
+Select an exact OpenAPI 3.1 operation and response. OpenAPI 3.0 is rejected because its schema
+semantics cannot be losslessly treated as Draft 2020-12. The default OpenAPI 3.1 base dialect and
+an explicit Draft 2020-12 `jsonSchemaDialect` are supported; custom dialects are rejected:
 
-Map the service's wire contract, not merely language-level type names:
+```sh
+randomizer contract import get-user-200 \
+  --source specs/users.openapi.yaml \
+  --format openapi \
+  --method GET --endpoint /users/{user_id} --status 200
+```
 
-| Evidence | JSON Schema |
+Do not select an operation by a nearby name or use a request schema for a response. The method,
+normalized path, status, and response media type must identify one response unambiguously. Add
+`--media-type application/json` when more than one schema-bearing response type exists.
+
+Import a sanitized serialized example conservatively:
+
+```sh
+randomizer contract import get-user-200 \
+  --source .randomizer/fixtures/get-user-200.json \
+  --format serialized-example \
+  --method GET --endpoint /users/{user_id} --status 200
+```
+
+This importer preserves the example and infers observed primitive/container shapes plus
+unambiguous date, date-time, and UUID formats. Its warning diagnostics identify enum, nullability,
+optionality, and other claims that one example cannot prove. Use the example as an exact fixture
+when those unknowns make variable generation unsafe.
+
+## Analyze through an external provider
+
+Use a provider when authoritative wire metadata lives behind framework or language tooling:
+
+```sh
+randomizer contract analyze get-user-200 \
+  --provider ./tools/randomizer-contract-provider \
+  --provider-arg --project --provider-arg app \
+  --method GET --endpoint /users/{user_id} --status 200 \
+  --root-symbol UserEnvelope \
+  --source src/client/user-types.ts
+```
+
+The provider must implement protocol version `1` described in
+[generic-wire-contract.md](generic-wire-contract.md). It is an optional repository or developer
+tool, not a bundled language adapter. Reject provider output when the protocol version is
+unsupported, the schema is invalid, declared sources lack SHA-256 fingerprints, diagnostics contain
+errors, or the response cannot compile against Randomizer's supported schema subset.
+Each core schema claim must use the canonical protocol evidence kind at its exact schema path;
+provider-specific generic evidence is additional context only and cannot satisfy the claim.
+The executable path and every `--provider-arg` value are stored verbatim in the contract lock, so
+arguments must never contain secrets or tokens.
+
+## Refresh and check
+
+```sh
+randomizer contract refresh get-user-200
+randomizer contract check get-user-200
+randomizer contract check
+```
+
+`refresh` reruns the locked import/provider provenance for one contract. `check` compares source
+fingerprints, managed contract content, and lock metadata without changing files. `refresh`
+preserves the locked contract version. Re-import/analyze defaults to version `1`, so read and pass
+the existing locked `contract_version` explicitly unless changing it intentionally.
+
+## Evidence requirements
+
+Map the service's serialized wire contract, not source-language type names:
+
+| Decision | Required evidence |
 | --- | --- |
-| Serialized enum values | `enum` containing exact JSON values |
-| Boolean may be true or false | `type: boolean` |
-| Boolean is contractually fixed | `const: true` or `const: false` |
-| Property guaranteed present | Include its JSON name in `required` |
-| Property may be absent | Omit it from `required` |
-| Property may be JSON null | Include `null` in its type or union branch |
-| Repeated list | `type: array` with `items` |
-| Nested DTO or object | `type: object` with `properties` |
-| Closed response object | `additionalProperties: false` only with authoritative evidence |
-| Fixed discriminator or event kind | `const` |
-| Alternative wire shapes | `oneOf` or `anyOf` |
+| JSON property or wrapper name | Schema name, serializer alias, provider evidence, or serialized payload |
+| Enum/const | Complete exact JSON values from a schema, serializer, or authoritative tests |
+| Date/time | Exact JSON primitive plus format/encoding and timezone behavior |
+| Required | Specification or serialization behavior guaranteeing presence |
+| Nullable | Specification or serialization behavior allowing explicit JSON `null` |
+| Optional | Specification or serialization behavior allowing omission |
+| Collection/object shape | Item/property schema and wrapper evidence |
+| Numeric/string bounds | Contract or validation evidence, not realism guesses |
 
-Resolve annotations, custom serializers, aliases, naming policies, and enum conversion before using
-source-language field or symbol names. Primitive language types do not prove JSON requiredness.
-Consumer dereferences show what the application expects but do not override an authoritative service
-specification.
+Keep optional and nullable separate. A sample containing one enum value does not prove the enum set;
+a timestamp-looking string does not prove `format: date-time`; a declared non-null source type does
+not prove wire presence.
 
-When an authoritative service schema or serialized response type is available, model its complete
-wire response. When only consumer usage is available, model the evidenced subset, leave the object
-open, and report that the contract is partial; do not set `additionalProperties: false` or claim the
-remaining response fields are known.
+When only a serialized example is authoritative, retain its warning diagnostics and do not promote
+observed values into enum members, requiredness rules, bounds, or unobserved wrapper variants. Use a
+sanitized deterministic fixture when the conservative imported schema is still unsafe.
 
-## Supported generation features
+## Supported schema subset
 
-Use these features when supported by evidence:
+Supported generation features include:
 
-- types: `object`, `array`, `string`, `integer`, `number`, `boolean`, and `null`;
-- composition: local `$defs`/`$ref`, `oneOf`, and `anyOf`;
-- exact choices: `enum` and `const`, including string, number, boolean, and null values;
-- objects: `properties`, `required`, and validation of `additionalProperties`;
-- arrays: `items`, `minItems`, and `maxItems` up to 100 generated elements;
-- strings: `minLength`, `maxLength`, generatable `pattern`, and `examples`/`example`;
-- formats: `date`, `date-time`, `email`, `uri`, `uri-reference`, and `uuid`;
-- numbers: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, and `multipleOf`;
-- nullable values: type arrays containing `null`;
-- response modes: `valid`, `minimum`, `maximum`, `boundary`, `invalid`, and `example`.
+- types `object`, `array`, `string`, `integer`, `number`, `boolean`, and `null`;
+- nullable type arrays, `enum`, `const`, `oneOf`, and `anyOf`;
+- local `$defs` and `$ref` only;
+- `properties`, `required`, and `additionalProperties` validation;
+- `items`, `minItems`, and `maxItems` up to 100 generated elements;
+- `minLength`, `maxLength`, supported `pattern`, `example`, and `examples`;
+- `minimum`, `maximum`, exclusive bounds, and `multipleOf`;
+- generated formats `date`, `date-time`, `email`, `uri`, `uri-reference`, and `uuid`.
 
-Avoid external `$ref`, cyclic references, `allOf`, unsupported string formats, unbounded dynamic maps,
-and relying on `default` for generation. Use an inline response or fixture when the actual shape
-cannot be represented by supported generation features.
+External references, cycles, `allOf`, unsupported formats such as `time` or `duration`, and
+unbounded dynamic maps are not safe generated contracts. Use an exact fixture when the real wire
+shape cannot be generated without losing required behavior.
 
-## Contract decisions
-
-- Default route responses to `mode: valid`.
-- Use `mode: example` only when the route should reproduce the contract's example rather than vary.
-- Use separate contracts when success and error statuses have different response shapes.
-- Do not add speculative enum members so responses appear more varied.
-- Do not constrain a boolean to one value just because one fixture contains that value.
-- Do not mark every declared field required unless presence is guaranteed by serialization or the
-  authoritative service specification.
-- Do not add numeric, length, array, or pattern bounds solely to make generated output look realistic.
-- Keep the schema valid after request bindings. Path, query, and header bindings produce strings, so
-  bind them only into schema locations that accept strings.
+Route responses reference the emitted contract path and normally use `mode: valid`. Use separate
+contracts for materially different response statuses or shapes. `randomizer verify` requires each
+managed artifact to be referenced by its locked method, path, status, and media type; set an explicit
+response `content-type` for a selected non-`application/json` OpenAPI response. Contract modes are
+`valid`, `minimum`, `maximum`, `boundary`, `invalid`, and `example`.

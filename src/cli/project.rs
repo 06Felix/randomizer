@@ -7,7 +7,10 @@ use tokio::{
 
 use crate::{
     mock::CompiledMockRegistry,
-    project::{ProjectPaths, validate_manifest},
+    project::{
+        ProjectPaths, check_managed_contracts, check_wiring, validate_managed_contract_references,
+        validate_manifest,
+    },
 };
 
 use super::{CliError, args::ProjectArgs};
@@ -21,11 +24,16 @@ pub fn verify(args: ProjectArgs) -> Result<(), CliError> {
 pub(crate) fn verify_paths(paths: &ProjectPaths) -> Result<(), CliError> {
     let manifest = paths.load_manifest()?;
     validate_manifest(&manifest)?;
+    let contracts = check_managed_contracts(paths, None)?;
+    validate_managed_contract_references(paths, &manifest)?;
     let registry = CompiledMockRegistry::compile(&manifest, paths)?;
+    let wiring = check_wiring(&paths.root, &manifest, None)?;
     println!(
-        "verified {} HTTP services and {} routes",
+        "verified {} HTTP services, {} routes, {} managed contracts, and {} endpoint wiring entries",
         manifest.services.len(),
         registry.route_ids().len(),
+        contracts.names.len(),
+        wiring.entries.len(),
     );
     Ok(())
 }
@@ -36,12 +44,13 @@ pub fn inspect(args: ProjectArgs) -> Result<(), CliError> {
     println!("project: {}", manifest.project.name);
     for service in &manifest.services {
         println!(
-            "http service: {}{}",
+            "http service: {}{} ({} wiring entries)",
             service.id,
             service
                 .config_key
                 .as_deref()
-                .map_or(String::new(), |key| format!(" ({key})"))
+                .map_or(String::new(), |key| format!(" (legacy config_key: {key})")),
+            service.wiring.len(),
         );
     }
     for route in &manifest.routes {

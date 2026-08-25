@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.2.0-rc.5 - 2026-08-25
+
+### Features
+
+- Add a language-neutral, versioned provider protocol for deriving response contracts from any
+  language-specific tool, with source fingerprints, exact claim-level evidence, diagnostics,
+  bounded execution, and strict endpoint/schema validation.
+- Add managed contract import, analysis, refresh, and freshness checks for Draft 2020-12 JSON
+  Schema, exact OpenAPI 3.1 responses, and conservative serialized examples, with recoverable
+  artifact/lock transactions and exact manifest endpoint/media-type association checks.
+- Add deterministic application endpoint wiring for dotenv, properties, JSON, and YAML settings,
+  including explicit shared-base and client path-resolution assertions, rollback on partial apply,
+  idempotent apply, and read-only verification.
+- Introduce manifest version 2 for structured wiring while continuing to accept legacy version 1
+  manifests that do not declare wiring.
+- Update `$randomizer-mocks` to use authoritative wire artifacts and deterministic contract/wiring
+  commands for both new and existing services.
+
 ## v1.2.0-rc.4 - 2026-08-17
 
 ### Features

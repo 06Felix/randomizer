@@ -1,4 +1,4 @@
 interface:
   display_name: "Manage Randomizer Mocks"
-  short_description: "Create language-aware HTTP mock contracts"
-  default_prompt: "Use $randomizer-mocks to inspect the actual serialized service behavior, create any requested generator payloads from evidenced variable semantics, and add or update the requested HTTP endpoints and contracts."
+  short_description: "Create and wire evidence-backed HTTP mocks"
+  default_prompt: "Use $randomizer-mocks for the requested outbound endpoint, importing or analyzing its wire contract and wiring the application's local HTTP setting to Randomizer."

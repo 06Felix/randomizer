@@ -1,187 +1,168 @@
 ---
 name: randomizer-mocks
-description: Add or update repository-local Randomizer HTTP mock endpoints and response contracts by inspecting the real serialized wire behavior, language/framework serializers, enums, date and time values, booleans, nullability, constraints, tests, fixtures, and API specifications. Use when asked to mock HTTP endpoints, change an existing mock route or response, or synchronize Randomizer mocks after client or DTO changes.
+description: Configure repository-local Randomizer HTTP mocks for named outbound endpoints using authoritative wire schemas, versioned contract providers, serialized fixtures, and deterministic local URL wiring. Use when asked to add, update, or resynchronize an HTTP mock without depending on the application's implementation language.
 ---
 
-# Manage Randomizer Mocks
+# Configure Randomizer Mocks
 
-Add or update only the requested HTTP mocks. Keep the operation evidence-based, incremental, and
-idempotent. The runtime is language-independent; this skill is the repository-understanding layer.
+Treat a mock as complete only when its response contract is evidence-backed and the application's
+local HTTP setting is wired to the Randomizer gateway. Apply the same workflow to existing and new
+services. Keep changes limited to the requested outbound endpoints.
 
-## Resolve scope and language
+## Establish scope
 
-Accept endpoint scope as methods and paths, service names, client/source files, features, route IDs,
-or an explicit endpoint list. An optional prompt hint may select a playbook:
+Accept an exact method and path, a service/client symbol, an existing route ID, or a short endpoint
+list. Resolve that input to the outbound HTTP method, path template, success/error status being
+mocked, owning service, and local configuration setting. If the endpoint or status remains
+ambiguous, ask before changing files.
 
-```text
-$randomizer-mocks language=java Add GET /users/{id}
+Before initializing or modifying the project, confirm that the invoked binary exposes this
+workflow:
+
+```sh
+randomizer contract --help
+randomizer wiring --help
 ```
 
-If no hint is supplied, detect the language and framework from repository files and from the owner of
-the requested outbound client. If several languages are present, inspect only the requested client.
-If detection is uncertain or conflicting, ask before making language-specific assumptions.
+If either command is unavailable, stop and ask the developer to update or build Randomizer. Do not
+trust the version string alone; an older binary may report the same prerelease package version.
 
-Load [references/runtime-capabilities.md](references/runtime-capabilities.md) and
-[references/generic-wire-contract.md](references/generic-wire-contract.md) for every task. Load one
-language playbook only when it matches the detected source:
+If `.randomizer/randomizer.yaml` is absent, run `randomizer init`. Otherwise inspect the existing
+manifest, contracts, fixtures, contract lock, and application configuration before changing them.
 
-- Java/JVM: [references/languages/java.md](references/languages/java.md)
-- TypeScript/JavaScript: [references/languages/typescript.md](references/languages/typescript.md)
-- Python: [references/languages/python.md](references/languages/python.md)
-- Go: [references/languages/go.md](references/languages/go.md)
-- Rust: [references/languages/rust.md](references/languages/rust.md)
+Read these references as needed:
 
-For any other language, use the generic wire-contract workflow and do not invent language mappings.
+- Always read [references/runtime-capabilities.md](references/runtime-capabilities.md) and
+  [references/generic-wire-contract.md](references/generic-wire-contract.md).
+- Before importing or changing a generated response, read
+  [references/contracts.md](references/contracts.md).
+- Read one matching optional-provider guide only when evaluating a repository-supplied or
+  developer-supplied adapter: [Java/JVM](references/languages/java.md),
+  [TypeScript/JavaScript](references/languages/typescript.md),
+  [Python](references/languages/python.md), [Go](references/languages/go.md), or
+  [Rust](references/languages/rust.md). Randomizer does not bundle those adapters.
 
-If `.randomizer/randomizer.yaml` is absent, run `randomizer init` before continuing. Otherwise load
-the existing manifest and fixtures before inspecting application code.
+## Choose authoritative response evidence
 
-## Inspect the actual wire contract
+Prefer inputs in this order:
 
-Trace only the requested outbound calls. Establish:
+1. A committed response JSON Schema that explicitly declares Draft 2020-12.
+2. The exact operation, status, and media-type response schema in committed OpenAPI 3.1 using its
+   default base dialect or explicit Draft 2020-12 dialect.
+3. A repository-supplied or developer-supplied executable provider that implements Randomizer's
+   versioned provider protocol.
+4. A sanitized serialized example imported conservatively, or used as an exact fixture when its
+   limits prevent safe randomization.
 
-- HTTP method, path template, query, headers, and request-body conditions;
-- the base-URL setting and local-development configuration;
-- response wrappers, declared fields, and fields consumed by the application;
-- serialized JSON names and actual JSON primitive/container types;
-- exact enum wire values, boolean semantics, requiredness, omission, nullability, collections,
-  date/time representation, formats, numeric/length constraints, and error behavior;
-- tests, fixtures, OpenAPI, JSON Schema, or examples supporting every decision.
+Do not infer the wire contract from a source-language type name alone. A serialized example proves
+the observed shape and values, but not a complete enum, a date-time semantic, requiredness across all
+responses, or all wrapper variants.
 
-Prefer evidence in this order:
+Before accepting a generated contract, account for every field's JSON name, wire type,
+requiredness, nullability, enum/const values, constraints, wrapper location, and evidence. Exact enum
+values, date/time representation, aliases, custom serialization, and response wrappers require
+explicit evidence. Treat provider error diagnostics, missing fingerprints, unsupported protocol
+versions, and conflicting sources as blocking rather than guessing.
 
-1. Official OpenAPI, JSON Schema, or service documentation supplied by the developer or available in
-   the repository or through configured tools.
-2. Recorded service fixtures, examples, contract tests, and integration tests.
-3. Actual serializer metadata, response types, enum definitions, validators, and custom serializers.
-4. Response-consumer access patterns and error handling.
-5. A developer description when no inspectable source exists.
+## Materialize the contract deterministically
 
-The authoritative object is the serialized wire response, not a source-language type name. When
-sources disagree, follow actual local serialization behavior and report the conflict. Ask rather than
-inventing business states, enum values, date/time formats, boolean restrictions, required fields, or
-validation bounds.
+Use Randomizer commands rather than hand-copying provider output:
 
-Build a field evidence table before authoring a contract. For every property record:
+```sh
+randomizer contract import get-user-200 \
+  --source specs/users.schema.json \
+  --format json-schema \
+  --method GET --endpoint /users/{user_id} --status 200
 
-| JSON name | Wire type | Required? | Nullable? | Enum/const | Constraints | Evidence |
-| --- | --- | --- | --- | --- | --- | --- |
+randomizer contract import get-user-200 \
+  --source specs/users.openapi.yaml \
+  --format openapi \
+  --method GET --endpoint /users/{user_id} --status 200
 
-Keep optional and nullable separate. A property may be absent, present as `null`, both, or neither.
-Language primitives, default values, and consumer dereferences do not prove requiredness.
+randomizer contract import get-user-200 \
+  --source .randomizer/fixtures/get-user-200.json \
+  --format serialized-example \
+  --method GET --endpoint /users/{user_id} --status 200
 
-## Create Randomizer generation request payloads
-
-When the developer asks for a Randomizer `/generate` request payload rather than a project response
-contract, create the custom generator schema from explicit constraints and meaningful variable names.
-Keep this separate from Draft 2020-12 response contracts.
-
-For example, the name and stated bounds below describe an integer duration in minutes:
-
-```json
-{
-  "schema": {
-    "completion_time_in_minutes": {
-      "type": "int",
-      "min": 0,
-      "max": 60
-    }
-  }
-}
+randomizer contract analyze get-user-200 \
+  --provider ./tools/randomizer-contract-provider \
+  --method GET --endpoint /users/{user_id} --status 200 \
+  --root-symbol UserEnvelope --source src/client/user-types.ts
 ```
 
-Use name semantics such as units (`_in_minutes`, `_in_seconds`), counts, percentages, IDs, flags,
-and lists to select an appropriate generator type only when the surrounding code or developer
-constraints support that interpretation. Preserve explicit `min`, `max`, `precision`, enum values,
-and list bounds. A variable name alone does not justify fabricated numeric ranges; ask for bounds or
-use the generator's documented defaults when the developer explicitly requests a generated payload.
+Pass `--root-symbol <symbol>` when the evidenced response/wrapper root must be recorded explicitly,
+and `--media-type <type>` when an operation has multiple schema-bearing response types. Pass
+`--provider-arg <arg>` repeatedly only when the provider requires fixed arguments. Use
+`--contract-version <version>` for a deliberately versioned new contract. Before re-importing or
+reanalyzing an existing contract, read its locked `contract_version` and pass that value explicitly;
+the command default is always `1`. `import` and `analyze` write the managed contract and update
+`.randomizer/contracts.lock.json` with provenance and source fingerprints as one recoverable
+transaction. Leave any transaction journal in place after an interrupted command; the next contract
+command restores the previous consistent state automatically.
 
-Use the custom generator types `int`, `float`, `string`, `enum`, `object`, `boolean`, `uuid`, and
-`list`. Include `seed`, `sequence`, or `frequency` only when the requested REST or WebSocket payload
-needs deterministic replay or streaming.
+Provider program names and arguments are persisted verbatim in that lock; never put secrets,
+tokens, or personal data in them.
 
-## Reconcile the manifest
+Do not import a standalone schema with an undeclared dialect, OpenAPI 3.0, or an OpenAPI 3.1 document
+with a custom `jsonSchemaDialect`; obtain a supported authoritative artifact instead of assuming
+keyword semantics.
 
-Identify an existing route by service, method, normalized path, and distinguishing matchers.
+The serialized-example importer infers only observed primitive/container shapes and unambiguous
+date, date-time, or UUID formats, preserves the example, and reports the claims one sample cannot
+prove. If those warnings leave required contract decisions unresolved, use the sanitized example as
+an exact fixture instead of fabricating variability.
 
-For additions:
+Use `randomizer contract refresh <name>` after a locked source changes, and
+`randomizer contract check [<name>]` to reject stale or manually drifted contracts.
 
-- reuse a service when its base URL represents the same third party;
-- add a service only when required, using a stable lowercase hyphenated ID;
-- generate a stable descriptive route ID;
-- update the application's local base URL only when adding a new service.
+## Reconcile routes and local wiring
 
-For updates:
+Identify routes by service, method, normalized path, and distinguishing matchers. Reuse stable
+service and route IDs, preserve unrelated scenarios, and never delete unreferenced fixtures
+automatically. Repeated execution must not create duplicate entries. Reference every managed
+contract from a route with the same locked method, path, response status, and media type. When an
+OpenAPI response selected a non-`application/json` type, set the response `content-type` header to
+that exact media type.
 
-- change only requested routes or response scenarios;
-- preserve unrelated services, routes, matchers, fixtures, and application configuration;
-- retain existing route IDs and scenarios unless explicitly asked to replace them;
-- never delete unreferenced fixtures automatically.
+For every requested service, including an existing service, add or reconcile structured `wiring`
+entries that name the exact local configuration file, supported format, selector, and target. Use
+`service_base_url` only with `service_base_safety: dedicated_setting` when the setting is exclusive
+to modeled calls, or `service_base_safety: all_calls_mocked` when every call sharing it has a route.
+Before selecting either service-base assertion, inspect or test the actual HTTP client's base-URL
+resolution with the endpoint spelling used by the application. Set
+`service_base_path_behavior: preserves_prefix` only when it retains the configured
+`/mock/<service-id>` path, including for a leading-slash endpoint. Many standard URL resolvers drop
+that prefix. Use `route_url` only when the application has a route-specific setting and the route
+matcher path is static; omit both service-base assertions for that target. A route containing
+`{parameter}` or `*` cannot become a literal configuration URL, so use an evidenced base setting or
+ask the developer instead. If adding wiring to a legacy version 1 manifest, update it to version 2.
+Never redirect production configuration.
 
-Repeated execution must not create duplicate services, routes, responses, or configuration entries.
+Wiring files are application configuration. Never point a wiring entry into `.randomizer/` or at a
+manifest, contract, lock, fixture, skill, or runtime-state file.
 
-## Create or update contracts
+Keep secrets, authorization values, personal data, and unsanitized production payloads out of the
+manifest, contracts, fixtures, provider diagnostics, and committed local configuration.
 
-Read [references/contracts.md](references/contracts.md) before creating or changing a contract. Create
-a bare Draft 2020-12 JSON Schema under `.randomizer/contracts/` for every requested generated response.
-Do not add Randomizer metadata or hashes and do not run a contract-import command.
+Run:
 
-Before saving the contract, compare every selected keyword and format with the runtime capability
-reference. If a wire shape cannot be safely represented by supported generation, use a fixture or ask
-for a serialized example. Never emit an unsupported format merely because a language has a matching
-type.
-
-Represent behavior exactly:
-
-- `enum` contains exact serialized, case-sensitive wire values;
-- `type: boolean` permits both values; `const` fixes a contractually fixed value;
-- only guaranteed properties belong in `required`;
-- nullable values include `null` in their type or union branch;
-- arrays use evidenced `items` and bounds;
-- dates, times, numbers, strings, and custom formats follow observed wire serialization;
-- local `$defs` and `$ref` are allowed; external references are forbidden.
-
-Reference contracts from the route:
-
-```yaml
-services:
-  - id: users
-    config_key: USERS_API_URL
-
-routes:
-  - id: get-user
-    service: users
-    match:
-      method: GET
-      path: /users/{user_id}
-    responses:
-      - status: 200
-        body:
-          contract: .randomizer/contracts/users-get-user-200.json
-          mode: valid
+```sh
+randomizer wiring apply --service <service-id>
+randomizer wiring check --service <service-id>
 ```
 
-Use `inline` only for intentionally fixed JSON and `fixture` when a supported generated contract
-cannot safely represent the actual response. Point the local application base URL to
-`http://127.0.0.1:<randomizer-port>/mock/<service-id>` while preserving production settings. For
-browser requests, follow the repository's existing local proxy or rewrite convention.
-
-Keep secrets, authorization values, personal data, and production payloads out of committed mocks.
-Use deterministic fictional values.
+The gateway does not proxy unmatched traffic. Before applying `service_base_url`, find every call
+sharing that base setting and ensure its routes are modeled; otherwise prefer an evidenced
+route-specific setting or ask the developer how local routing should work.
 
 ## Verify and report
 
-Run `randomizer verify` after every modification. It compiles each contract and generates a value,
-catching invalid schemas and unsupported generation features. Run focused application tests when a
-reliable test seam covers the changed client behavior.
+Run `randomizer contract check`, `randomizer wiring check`, and `randomizer verify`. Inspect the
+reported counts and manifest after checking: zero managed contracts, routes, or wiring entries can
+be valid for an empty/legacy project, but does not prove that the requested mock is complete. Run
+focused application tests when they cover the changed HTTP client or decoder.
 
-Report:
-
-- detected language/framework and playbook used;
-- services, routes, scenarios, contracts, fixtures, and local configuration changed;
-- the field evidence table, especially enum, boolean, optional/nullable, and date/time decisions;
-- evidence files used;
-- unsupported features, fixture fallbacks, unresolved assumptions, or conflicts;
-- exact commands for `randomizer start`, the application's normal startup, and `randomizer stop`.
-
-Do not start the application or Randomizer unless requested.
+Report the endpoint/status handled, contract source or provider identity, material enum/date-time/
+wrapper evidence, route and wiring entries changed, fixture fallbacks, unresolved ambiguity, and the
+exact `randomizer start`, application start, and `randomizer stop` commands. Do not start either
+process unless requested.

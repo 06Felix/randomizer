@@ -1,11 +1,12 @@
-# Go Wire-Contract Playbook
+# Optional Go Provider Guidance
 
-Inspect `encoding/json` behavior and custom marshaling.
+Randomizer does not bundle a Go analyzer. Use this reference only for an external protocol-v1
+provider supplied by the repository or developer.
 
-- Resolve `json` tags, `omitempty`, pointer presence, and embedded fields.
-- Inspect `MarshalJSON`, `UnmarshalJSON`, `time.Time`, custom time layouts, and aliases.
-- Resolve enum constants to the strings or numbers emitted by `MarshalJSON`.
-- Distinguish nil pointers, omitted fields, and explicit JSON `null`.
-- Check `decimal`, UUID, byte-slice, and map serialization.
+A trustworthy provider should model active `encoding/json` behavior, including `json` tags,
+`omitempty`, pointers, embedded fields, and `MarshalJSON`. Require explicit evidence for exact
+string or numeric enum values, nil/omitted/null behavior, wrapper roots, `time.Time` layouts,
+custom time types, decimals, UUIDs, byte slices, and maps.
 
-Prefer recorded JSON or OpenAPI when custom marshaling is present.
+Go field types and constants alone do not prove their wire form. Prefer committed OpenAPI/JSON
+Schema or a serialized fixture when custom marshaling cannot be executed or inspected reliably.

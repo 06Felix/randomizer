@@ -1,11 +1,12 @@
-# Rust Wire-Contract Playbook
+# Optional Rust Provider Guidance
 
-Inspect Serde attributes and custom serializers.
+Randomizer does not bundle a Rust analyzer. Use this reference only for an external protocol-v1
+provider supplied by the repository or developer.
 
-- Check `rename`, `rename_all`, `skip`, `skip_serializing_if`, defaults, flattening, and tagging.
-- Resolve enum externally/internally/adjacently tagged representations and exact values.
-- Inspect `chrono`, `time`, `uuid`, `Decimal`, bytes, and custom date/time serializers.
-- Distinguish `Option<T>` omission from explicit `null` according to serializer attributes.
-- Treat `#[serde(default)]` as deserialization behavior unless response serialization proves presence.
+A trustworthy provider should resolve Serde `rename`, `rename_all`, skip rules, defaults,
+flattening, enum tagging, and custom `Serialize` implementations. Require explicit evidence for
+exact enum values and shapes, `Option<T>` omission versus null, wrapper roots, and serialization of
+`chrono`, `time`, UUID, decimal, byte, and custom date/time values.
 
-Use actual JSON fixtures when custom `Serialize` implementations change the wire shape.
+Rust type declarations alone do not establish the wire contract. If custom serialization cannot be
+resolved, use committed OpenAPI/JSON Schema or a serialized fixture instead.

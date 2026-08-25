@@ -7,6 +7,7 @@ pub mod generation;
 pub mod generator;
 pub mod mock;
 pub mod project;
+pub mod provider;
 pub mod schema;
 pub mod server;
 pub mod standard;

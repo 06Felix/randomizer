@@ -51,10 +51,11 @@ fn exposes_the_generic_project_commands() {
     assert!(stdout.contains("  start"));
     assert!(stdout.contains("  stop"));
     assert!(stdout.contains("  skill"));
+    assert!(stdout.contains("  contract"));
+    assert!(stdout.contains("  wiring"));
     assert!(!stdout.contains("  up"));
     assert!(!stdout.contains("  down"));
     assert!(!stdout.contains("  dev"));
-    assert!(!stdout.contains("  contract"));
 
     let init_help = run_randomizer(&["init", "--help"]);
     let init_stdout = String::from_utf8_lossy(&init_help.stdout);
@@ -66,6 +67,13 @@ fn exposes_the_generic_project_commands() {
     let skill_stdout = String::from_utf8_lossy(&skill_help.stdout);
     assert!(skill_stdout.contains("--project"));
     assert!(skill_stdout.contains("--force"));
+
+    let import_help = run_randomizer(&["contract", "import", "--help"]);
+    assert!(import_help.status.success());
+    let import_stdout = String::from_utf8_lossy(&import_help.stdout);
+    assert!(import_stdout.contains("json-schema"));
+    assert!(import_stdout.contains("openapi"));
+    assert!(import_stdout.contains("serialized-example"));
 }
 
 #[test]

@@ -1,8 +1,10 @@
 mod args;
+mod contract;
 mod init;
 mod lifecycle;
 mod project;
 mod skill;
+mod wiring;
 
 use std::{io, net::SocketAddr, path::PathBuf};
 
@@ -19,6 +21,14 @@ pub enum CliError {
     Manifest(#[from] crate::project::ManifestError),
     #[error(transparent)]
     Skill(#[from] skill::SkillError),
+    #[error(transparent)]
+    Contract(#[from] crate::project::ContractError),
+    #[error(transparent)]
+    ContractReference(#[from] crate::project::ContractReferenceError),
+    #[error(transparent)]
+    Provider(#[from] crate::provider::ProviderError),
+    #[error(transparent)]
+    Wiring(#[from] crate::project::WiringError),
     #[error(transparent)]
     Mock(#[from] crate::mock::MockCompileError),
     #[error(transparent)]
@@ -99,6 +109,8 @@ pub async fn run_cli() -> Result<(), CliError> {
         }
         Some(args::Command::Init(args)) => init::init(args)?,
         Some(args::Command::Skill(args)) => skill::skill(args)?,
+        Some(args::Command::Contract(args)) => contract::contract(args).await?,
+        Some(args::Command::Wiring(args)) => wiring::wiring(args)?,
         Some(args::Command::Verify(args)) => project::verify(args)?,
         Some(args::Command::Start(args)) => lifecycle::start(args).await?,
         Some(args::Command::Stop(args)) => lifecycle::stop(args).await?,

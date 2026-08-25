@@ -1,18 +1,38 @@
 # Project HTTP Mocking
 
-Randomizer project mode serves repository-local HTTP mocks for any application language or
-framework. Runtime behavior has no source-analysis, message-broker, container-runtime, Java, or
-agent dependency.
+Randomizer project mode serves repository-local HTTP mocks for applications written in any language.
+The runtime consumes HTTP routes, JSON contracts, fixtures, and explicit local configuration wiring;
+it does not parse source-language DTOs.
 
-## Setup
+## User workflow
 
-Run this once from the application repository:
+Install Randomizer, then run this once from the application repository:
 
 ```sh
 randomizer init
 ```
 
-It also creates:
+Ask a coding agent for the exact outbound endpoint:
+
+```text
+$randomizer-mocks mock GET /users/{user_id}
+```
+
+The skill resolves the endpoint and local setting, imports or analyzes an authoritative response
+contract, reconciles the route, applies structured local wiring, and verifies the project. Review
+the changes, then run:
+
+```sh
+randomizer verify
+randomizer start
+# Start the application with its normal local command or IDE configuration.
+```
+
+Stop the managed background process with `randomizer stop`.
+
+## Repository artifacts
+
+`randomizer init` installs the project layout and repository-local skill:
 
 ```text
 .randomizer/
@@ -20,7 +40,8 @@ It also creates:
 ├── contracts/
 ├── fixtures/
 ├── skills.lock.json
-└── runtime/                 # generated and gitignored
+├── contracts.transaction.json # transient recovery journal, normally absent
+└── runtime/                    # generated locks/state and gitignored
 
 .agents/skills/randomizer-mocks/
 ├── SKILL.md
@@ -37,45 +58,120 @@ It also creates:
         └── rust.md
 ```
 
-Commit the manifest, fixtures, any contracts, the managed skill, `.randomizer/skills.lock.json`, and
-the application's local configuration. Do not commit `.randomizer/runtime/`.
+The first managed contract import or analysis also creates
+`.randomizer/contracts.lock.json`. Commit the manifest, managed contracts, sanitized fixtures,
+contract lock, skill files, skill lock, and safe repository-owned local-development configuration.
+Contract updates use a temporary `.randomizer/contracts.transaction.json` recovery journal and a
+process lock; both are gitignored. An interrupted update is restored to its previous artifact and
+lock state when the next contract command runs.
+If the application's real local file contains secrets or is intentionally ignored, create it through
+the repository's normal setup before applying wiring and keep it uncommitted. Do not commit
+`.randomizer/runtime/`, secrets, authorization values, personal data, or production payloads.
 
-Invoke `$randomizer-mocks` whenever one or more endpoints need to be added or updated. The skill
-detects the owning language and framework, loads a focused serialization playbook, and inspects only
-the requested outbound HTTP clients, response consumers, tests, fixtures, serialized types, service
-specifications, enums, booleans, date/time values, and local configuration before reconciling routes
-and response contracts. It falls back to a language-neutral wire-contract workflow when no playbook
-applies. No manual schema-import command is required. You can also edit the files directly.
-
-After installing a newer Randomizer binary, update the repository copy of the skill:
+After installing a newer Randomizer binary, synchronize the managed skill:
 
 ```sh
 randomizer skill sync
 ```
 
-Randomizer records the hashes and bundled version of managed files. Synchronization preserves local
-edits and asks for an explicit `--force` before replacing them.
+Synchronization compares bundled hashes and refuses to replace repository edits unless `--force`
+is explicit.
+
+## Language-neutral contract acquisition
+
+Use a committed wire artifact whenever possible. Randomizer supports three built-in import sources.
+OpenAPI imports require OpenAPI 3.1 so response schemas use Draft 2020-12 semantics without lossy
+3.0 conversion. Standalone schemas must explicitly declare the Draft 2020-12 `$schema`. OpenAPI
+documents may use the standard Draft 2020-12 dialect or the default OpenAPI 3.1 base dialect;
+custom `jsonSchemaDialect` values are rejected:
+
+```sh
+randomizer contract import get-user-200 \
+  --source specs/users.schema.json \
+  --format json-schema \
+  --method GET --endpoint /users/{user_id} --status 200
+
+randomizer contract import get-user-200 \
+  --source specs/users.openapi.yaml \
+  --format openapi \
+  --method GET --endpoint /users/{user_id} --status 200
+
+randomizer contract import get-user-200 \
+  --source .randomizer/fixtures/get-user-200.json \
+  --format serialized-example \
+  --method GET --endpoint /users/{user_id} --status 200
+```
+
+The OpenAPI selector must resolve one exact operation and response. It does not guess by operation
+name or substitute a request schema. The selected response media type is persisted even when it was
+the only choice; the manifest response must emit that type (set its `content-type` header when it is
+not `application/json`).
+
+When the authoritative serializer metadata requires language/framework tooling, use an executable
+provider supplied by the repository or developer:
+
+```sh
+randomizer contract analyze get-user-200 \
+  --provider ./tools/randomizer-contract-provider \
+  --method GET --endpoint /users/{user_id} --status 200 \
+  --root-symbol UserEnvelope \
+  --source src/client/user-types.ts
+```
+
+Randomizer does not bundle Java, TypeScript, Python, Go, Rust, or other language analyzers. Any
+language can integrate through provider protocol version `1`: Randomizer writes one JSON request to
+the provider's standard input and reads one JSON response from standard output. The response names
+the provider/version and returns a Draft 2020-12 schema, SHA-256 source fingerprints, claim-level
+evidence, and structured diagnostics. Every wrapper, property name, type, enum/const, format,
+requiredness, nullability, and constraint claim must be evidenced at its exact schema path;
+provider-specific generic evidence cannot stand in for it. Randomizer rejects unsupported versions,
+invalid schemas, missing fingerprints, error diagnostics, failed processes, oversized output, and
+timeouts.
+The executable path and provider arguments are persisted verbatim in
+`.randomizer/contracts.lock.json` for refreshes, so never pass secrets or tokens through
+`--provider-arg`.
+
+Serialized-example import preserves the example and conservatively infers its observed
+primitive/container shape plus unambiguous date, date-time, and UUID formats. Warning diagnostics
+record that one example cannot prove a complete enum, nullability/optionality across every response,
+or unobserved wrapper variants. Use the sanitized example as an exact fixture when those unknowns
+make variable generation unsafe.
+
+Managed contracts can be reproduced and audited:
+
+```sh
+randomizer contract refresh get-user-200
+randomizer contract check get-user-200
+randomizer contract check
+```
+
+`refresh` reruns the recorded source/provider recipe. `check` is read-only and rejects source,
+contract, or lock drift. Imports and analyses update the contract artifact and lock as one
+recoverable transaction, so a failed or interrupted two-file update cannot leave accepted split
+state.
 
 ## Request flow
 
 ```mermaid
 flowchart LR
-    APP["Application HTTP client"] -->|"normal HTTP request"| GW["Randomizer gateway"]
+    CFG["Local app setting"] -->|"wiring apply"| APP["Application HTTP client"]
+    APP -->|"normal HTTP request"| GW["Randomizer gateway"]
     MF["randomizer.yaml"] --> GW
-    CT["JSON contract or fixture"] --> GW
-    GW -->|"match service, method, path and request metadata"| RS["Configured response"]
-    RS --> APP
+    CT["Managed contract or fixture"] --> GW
+    GW -->|"matched response"| APP
 ```
 
-The application does not send a Randomizer-specific request. Its local base URL points to
-`http://127.0.0.1:7263/mock/<service-id>`, and the remainder of the request remains unchanged.
+The application continues making its normal HTTP request. For a service-base target, Randomizer
+writes `http://127.0.0.1:7263/mock/<service-id>` to the declared local setting; the remainder of
+the request path stays unchanged. When the gateway binds an unspecified address (`0.0.0.0` or
+`::`), wiring emits the corresponding loopback address instead of an invalid client destination.
 
 ## Manifest
 
-Register services and routes explicitly in `.randomizer/randomizer.yaml`:
+Register services, deterministic wiring, and routes in `.randomizer/randomizer.yaml`:
 
 ```yaml
-version: 1
+version: 2
 project:
   name: garage
   seed: 42
@@ -83,15 +179,21 @@ project:
   port: 7263
 
 services:
-  - id: service-os
-    config_key: SERVICE_OS_URL
+  - id: users
+    wiring:
+      - file: .env.local
+        format: dotenv
+        selector: USERS_API_URL
+        target: service_base_url
+        service_base_safety: all_calls_mocked
+        service_base_path_behavior: preserves_prefix
 
 routes:
-  - id: get-service-os-task
-    service: service-os
+  - id: get-user
+    service: users
     match:
       method: GET
-      path: /api/v1/task/{task_id}
+      path: /users/{user_id}
       query:
         include: details
       headers:
@@ -101,32 +203,27 @@ routes:
         headers:
           x-mock-source: randomizer
         body:
-          inline:
-            data:
-              reference_id: placeholder
-              state: IN_PROGRESS
+          contract: .randomizer/contracts/get-user-200.json
+          mode: valid
         bindings:
-          - target: /data/reference_id
-            source: ${request.path.task_id}
+          - target: /id
+            source: ${request.path.user_id}
       - status: 503
         body:
           inline:
             code: temporarily_unavailable
 ```
 
-`config_key` records the local application setting used for the service. Randomizer does not modify
-or interpret it at runtime; the `$randomizer-mocks` skill updates the repository's existing local
-configuration convention. A service without a `config_key` is valid.
-
 Route paths support literal segments, `{name}` parameters, and `*` wildcard segments. Matchers may
 also require exact query values, case-insensitive header names with exact values, and request-body
-values keyed by JSON Pointer.
+values keyed by JSON Pointer. Paths never contain a query string or fragment; put query requirements
+under `match.query`.
 
-Responses may contain one of:
+Each response body uses one source:
 
-- `inline`: JSON embedded in the manifest;
-- `fixture`: a JSON file relative to the project root;
-- `contract`: a bare Draft 2020-12 JSON Schema used for deterministic generation.
+- `inline`: intentionally fixed JSON in the manifest;
+- `fixture`: a sanitized JSON file relative to the project root;
+- `contract`: a managed or legacy bare Draft 2020-12 response schema.
 
 Multiple responses advance in order and then hold the final response. `randomizer reset` returns
 every route to its first response and clears request history.
@@ -140,50 +237,112 @@ Bindings replace an existing response JSON Pointer using:
 
 Contract responses are validated again after bindings are applied.
 
-### Generated response contracts
+## Local application wiring
 
-The skill writes bare schemas under `.randomizer/contracts/`; Randomizer derives contract metadata
-and the canonical content hash during verification and runtime:
+Structured wiring makes the application endpoint update deterministic for both new and existing
+services:
+
+| `format` | `selector` |
+| --- | --- |
+| `dotenv` | Exact environment key, for example `USERS_API_URL` |
+| `properties` | Exact property key, for example `clients.users.base-url` |
+| `json` | RFC 6901 JSON Pointer, for example `/clients/users/baseUrl` |
+| `yaml` | Dot path, for example `clients.users.base-url` |
+
+Each entry names an existing project-relative local configuration file and an existing string value.
+`target: service_base_url` writes the service gateway prefix and requires an explicit
+`service_base_safety` assertion: `dedicated_setting` when the setting is used only by modeled mock
+calls, or `all_calls_mocked` when every call sharing it has a Randomizer route. It also requires
+`service_base_path_behavior: preserves_prefix`, which may be asserted only after inspecting or
+testing the application's actual HTTP client and confirming that resolving its endpoint path keeps
+the configured `/mock/<service-id>` prefix, including when the endpoint begins with `/`.
+`target: route_url` instead requires a static-path `route` belonging to that service and must omit
+both assertions. Paths containing `{parameter}` or `*` cannot be written as usable literal
+configuration URLs and are rejected.
+
+```yaml
+wiring:
+  - file: config/local.json
+    format: json
+    selector: /clients/users/listUsersUrl
+    target: route_url
+    route: list-users # matcher path: /users
+```
+
+Apply and check all entries or one service:
+
+```sh
+randomizer wiring apply
+randomizer wiring check
+randomizer wiring apply --service users
+randomizer wiring check --service users
+```
+
+Randomizer rejects paths outside the project, missing or duplicate selectors, mixed formats for one
+file, paths under `.randomizer/`, non-string values, dynamic `route_url` paths, and route/service
+mismatches. It validates and
+snapshots every selected file before writing; if a later replacement fails, prior replacements are
+rolled back. It edits only the explicitly declared local files. The older optional `config_key`
+service field remains valid as descriptive compatibility
+metadata, but it is not a substitute for deterministic `wiring`. Randomizer continues to read
+legacy version 1 manifests without wiring. Before adding `wiring` to one, change `version` to `2`;
+this lets older binaries reject the new shape with a clear unsupported-version error.
+
+The gateway has no automatic passthrough. If multiple outbound calls share one base URL, applying
+`service_base_url` sends all of them to Randomizer and unmatched calls fail. Model every call that
+shares the setting, or use `route_url` when the application already exposes a route-specific local
+setting for a static path. Do not silently rewrite production configuration.
+
+## Managed response contracts
+
+Contract commands write the existing `JsonSchemaContract` envelope:
 
 ```json
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "required": ["status", "active", "retryable"],
-  "properties": {
-    "status": { "type": "string", "enum": ["QUEUED", "DONE"] },
-    "active": { "type": "boolean" },
-    "retryable": { "const": false },
-    "message": { "type": ["string", "null"] }
+  "name": "get-user-200",
+  "version": "1",
+  "source": "specs/users.schema.json",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["id", "status", "created_at"],
+    "properties": {
+      "id": { "type": "string" },
+      "status": { "type": "string", "enum": ["ACTIVE", "SUSPENDED"] },
+      "created_at": { "type": "string", "format": "date-time" },
+      "message": { "type": ["string", "null"] }
+    },
+    "additionalProperties": false
   },
-  "additionalProperties": false
+  "content_hash": "<canonical-schema-sha256>"
 }
 ```
 
-`type: boolean` allows generated `true` and `false` values. Use `const` only when the actual service
-contract fixes the flag. Enum values must be exact serialized wire values, including case. Optional
-properties stay out of `required`; nullable properties explicitly include `null`.
+The envelope makes name, contract version, source provenance, schema, and canonical content hash
+explicit. Provider identity/version, invocation recipe, field evidence, diagnostics, and source
+fingerprints are recorded separately in `.randomizer/contracts.lock.json`. Existing legacy bare
+schemas remain loadable.
 
-## Run
+Enum values and date/time formats in the example above are valid only when the authoritative source
+proves those exact wire encodings. Optional properties stay out of `required`; nullable properties
+explicitly include `null`. See the installed skill's `references/contracts.md` for the supported
+generation subset and fixture fallbacks.
 
-Validate configuration first:
+## Verify and run
 
 ```sh
+randomizer contract check
+randomizer wiring check
 randomizer verify
-```
-
-Start Randomizer in the background:
-
-```sh
 randomizer start
 ```
 
-Then start the application with its normal command or IDE. To keep Randomizer attached to the
-terminal instead:
-
-```sh
-randomizer start --foreground
-```
+`verify` validates the manifest, checks managed contract freshness and wiring, compiles routes, and
+generates/validates contract responses. It also requires every managed contract to be referenced by
+a route whose method, path, response status, and effective media type match the locked endpoint.
+Check its reported counts against the requested mock: an empty project legitimately reports zero
+managed contracts, routes, and wiring entries, so success alone does not establish that an endpoint
+was configured. Then start the application normally.
 
 Other lifecycle commands:
 
@@ -205,19 +364,11 @@ Management endpoints:
 
 ## Incremental mock management
 
-The skill accepts endpoint scope as methods and paths, service names, source files, features,
-existing route IDs, or endpoint lists. It identifies existing routes by service, method, normalized
-path, and distinguishing matchers so repeated requests do not create duplicates. Unrelated routes,
-responses, fixtures, and local configuration remain unchanged.
+The skill identifies an existing route by service, method, normalized path, and distinguishing
+matchers. It preserves unrelated services, routes, scenarios, fixtures, contracts, and application
+configuration, and repeated invocation must not create duplicates.
 
-For response evidence, it prefers developer-provided examples, existing fixtures and tests,
-committed OpenAPI or JSON Schema, serialized types and enums, and finally response-consumer
-behavior. It records the evidence for each property's JSON name, type, presence, nullability, enum or
-constant values, and constraints before creating or updating a contract. Inline bodies are reserved
-for intentionally fixed responses; fixtures are used when a supported generated contract cannot
-represent the actual response safely.
-
-The skill must not invent business states, error behavior, enum values, secrets, or production
-data. When repository evidence is incomplete, it reports the ambiguity and asks for a developer
-example. This keeps repository understanding outside the runtime while supporting repeated mock
-changes throughout the project lifecycle.
+For each requested response it records evidence for JSON names, wrappers, primitive/container types,
+presence, nullability, enums/constants, formats, and constraints. It reports ambiguity instead of
+inventing business states or serialization behavior. This keeps language/framework analysis behind
+optional provider boundaries while the Randomizer runtime and project workflow remain universal.

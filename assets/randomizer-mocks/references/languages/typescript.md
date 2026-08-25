@@ -1,12 +1,14 @@
-# TypeScript/JavaScript Wire-Contract Playbook
+# Optional TypeScript/JavaScript Provider Guidance
 
-Inspect the runtime serializer and validator, not only TypeScript types.
+Randomizer does not bundle a TypeScript or JavaScript analyzer. Use this reference only for an
+external protocol-v1 provider supplied by the repository or developer.
 
-- Check `JSON.stringify` transformations, Axios/fetch wrappers, `toJSON`, and custom mappers.
-- Check Zod, Yup, Joi, io-ts, Valibot, class-transformer, and OpenAPI schemas.
-- Resolve enum objects, string enums, numeric enums, aliases, and discriminators to their JSON values.
-- Distinguish optional properties from `null` unions and defaults.
-- Inspect `Date` serialization, usually an ISO string, before selecting `date-time`.
-- Treat `bigint`, `Buffer`, Maps, Sets, and custom classes as high-risk serialized shapes.
+A trustworthy provider should inspect runtime schemas or transformations such as OpenAPI, Zod, Yup,
+Joi, io-ts, Valibot, class-transformer, `toJSON`, Axios/fetch mappers, and `JSON.stringify`
+behavior. TypeScript interfaces disappear at runtime and cannot alone establish requiredness or
+serialization.
 
-Use fixtures when runtime transformations cannot be established from repository evidence.
+Require explicit evidence for exact enum/discriminator values, optional versus nullable properties,
+aliases, wrapper roots, `Date` formatting, and high-risk values such as `bigint`, `Buffer`, maps,
+sets, and custom classes. If runtime behavior is unavailable, use a committed schema or serialized
+fixture rather than accepting provider guesses.

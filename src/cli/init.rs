@@ -67,7 +67,8 @@ fn write_yaml(path: &Path, value: &impl serde::Serialize) -> Result<(), CliError
 
 fn write_ignore_file(paths: &ProjectPaths) -> Result<(), CliError> {
     let path = paths.randomizer_dir.join(".gitignore");
-    std::fs::write(&path, "runtime/\n").map_err(|source| CliError::Write { path, source })
+    std::fs::write(&path, "runtime/\ncontracts.transaction.json\n")
+        .map_err(|source| CliError::Write { path, source })
 }
 
 #[cfg(test)]
@@ -101,9 +102,10 @@ mod tests {
                 .join(".agents/skills/randomizer-mocks/SKILL.md"),
         )
         .unwrap();
-        assert!(installed_skill.contains("language=java"));
+        assert!(installed_skill.contains("randomizer contract import"));
+        assert!(installed_skill.contains("randomizer wiring apply"));
         assert!(installed_skill.contains("generic-wire-contract.md"));
-        assert!(installed_skill.contains("completion_time_in_minutes"));
+        assert!(installed_skill.contains("versioned provider protocol"));
         assert!(
             directory
                 .path()
@@ -128,7 +130,7 @@ mod tests {
                 .join(".agents/skills/randomizer-mocks/references/languages/java.md"),
         )
         .unwrap();
-        assert!(java_reference.contains("OffsetDateTime"));
+        assert!(java_reference.contains("protocol-v1 provider"));
         assert!(java_reference.contains("@JsonValue"));
         assert!(
             directory
@@ -140,11 +142,11 @@ mod tests {
             &std::fs::read(directory.path().join(".randomizer/skills.lock.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(skill_lock["skill_version"], 4);
+        assert_eq!(skill_lock["skill_version"], 5);
         assert_eq!(skill_lock["files"].as_object().unwrap().len(), 10);
         assert_eq!(
             std::fs::read_to_string(paths.randomizer_dir.join(".gitignore")).unwrap(),
-            "runtime/\n"
+            "runtime/\ncontracts.transaction.json\n"
         );
     }
 }

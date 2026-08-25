@@ -279,6 +279,7 @@ fn manifest(responses: Vec<ResponseDefinition>) -> ProjectManifest {
         services: vec![ServiceDefinition {
             id: "service-os".into(),
             config_key: None,
+            wiring: Vec::new(),
         }],
         routes: vec![RouteDefinition {
             id: "get-task".into(),
